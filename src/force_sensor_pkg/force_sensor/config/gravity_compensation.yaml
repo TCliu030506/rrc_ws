@@ -1,0 +1,11 @@
+/sensor_pipeline:
+  ros__parameters:
+    gravity_compensation:
+      gravity:
+        y: 0.07781289470953642
+        x: 0.08160122001300854
+        z: -2.699917328420856
+      force_base:
+        z: 0.1420168263191135
+        y: 2.325163131490513
+        x: -1.250496739183774

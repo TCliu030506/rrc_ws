@@ -1,0 +1,7 @@
+
+int8     mode
+int64    maxspeed
+int64    pos
+int32    speed
+---
+string   result

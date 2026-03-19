@@ -1,0 +1,8 @@
+# serialport msgs request srv
+# callname:"GOD"\"ADJZF"\"SMPR"\"SGDM"  
+# command:"."\char vector  
+
+string callname
+string command
+---
+string result

@@ -1,0 +1,6 @@
+# saaam calibration param
+torsion: #torsion spring trigger force and angle
+  lowertorque: 0.35
+  lowerangle: -31.84
+  upperangle: 31.84
+  springconst: 6.585 #N·mm/°

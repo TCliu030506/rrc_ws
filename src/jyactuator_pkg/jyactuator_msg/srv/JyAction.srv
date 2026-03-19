@@ -1,0 +1,6 @@
+# jyactuator action srv
+
+uint16  pos         # 
+float64 tim         # s
+---
+string  result

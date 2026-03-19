@@ -1,0 +1,2 @@
+Rename to `AMENT_IGNORE` to hide all ROS2 packages within this folder.
+Or `~AMENT_IGNORE` to unhide.

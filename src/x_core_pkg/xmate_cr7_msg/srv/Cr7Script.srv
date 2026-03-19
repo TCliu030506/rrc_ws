@@ -1,0 +1,24 @@
+string  command
+float64[] pose
+int16 speed
+int16 zone
+bool all_axes
+int16 axis_index 
+string ref_type  #参考坐标系类型，可选值："tool "、"flange"、"world"
+string rt_type  #实时控制类型，可选值：
+    ## jointPosition,      ///< 实时轴空间位置控制
+    ## cartesianPosition,  ///< 实时笛卡尔空间位置控制
+    ## jointImpedance,     ///< 实时轴空间阻抗控制
+    ## cartesianImpedance, ///< 实时笛卡尔空间阻抗控制
+    ## torque              ///< 实时力矩控制
+---
+string result
+float64[] joint    #rad
+float64[] pose     #xyzrpy
+float64[] vel      #
+float64[] torque   #Nm
+float64[] external_torque   #Nm
+float64[] cart_torque   #Nm
+float64[] cart_force   #N
+float64 acc
+float64 jerk

@@ -1,0 +1,4 @@
+std_msgs/Header header
+int32 control_flag
+int32 teleoperation_mode
+int32 record_flag

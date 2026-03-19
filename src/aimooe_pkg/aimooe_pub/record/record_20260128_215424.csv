@@ -1,0 +1,2 @@
+timestamp,insactuator_msg_header.stamp.sec,insactuator_msg_header.stamp.nanosec,insactuator_msg_header.frame_id,insactuator_msg_name[0],insactuator_msg_name[1],insactuator_msg_data[0],insactuator_msg_data[1]
+2026-01-28 21:54:22.131575,1769608462,122082333,inspire_actuator_id4,postion,force,599,29

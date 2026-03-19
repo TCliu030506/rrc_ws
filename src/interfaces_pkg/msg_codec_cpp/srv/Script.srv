@@ -1,0 +1,6 @@
+# Script.srv
+# Request
+std_msgs/UInt8MultiArray command
+---
+# Response 
+bool reply

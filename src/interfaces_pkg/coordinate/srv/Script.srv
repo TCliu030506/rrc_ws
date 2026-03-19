@@ -1,0 +1,4 @@
+# Script.srv
+uint8[] command
+---
+string  result

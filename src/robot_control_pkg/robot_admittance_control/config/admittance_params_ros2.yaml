@@ -1,0 +1,47 @@
+admittance_controller_node:
+  ros__parameters:
+    topic_arm_pose: "/UR5/ee_pose"
+    topic_arm_twist: "/UR5/ee_twist"
+    topic_external_wrench: "/external_force_torque_wrench"
+    topic_control_wrench: "/arm_admittance_control/control_wrench"
+    topic_arm_command: "/UR5/desired_twist"
+    topic_arm_pose_command: "/arm_desired_pose"
+    topic_desired_pose: "/desired_pose"
+    topic_desired_twist: "/desired_twist"
+    topic_desired_accel: "/desired_accel"
+
+    base_frame: "base"
+    arm_base_frame: "base"
+    ft_sensor_frame: "sensor_frame"
+    control_wrench_frame: "base"
+
+    # 6x6 质量矩阵（行优先展平）
+    mass_arm: [5.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 5.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 5.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 5.5, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 5.5, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 5.5]
+
+    # 6x6 阻尼矩阵（行优先展平）
+    damping_arm: [50.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                  0.0, 50.0, 0.0, 0.0, 0.0, 0.0,
+                  0.0, 0.0, 50.0, 0.0, 0.0, 0.0,
+                  0.0, 0.0, 0.0, 20.0, 0.0, 0.0,
+                  0.0, 0.0, 0.0, 0.0, 20.0, 0.0,
+                  0.0, 0.0, 0.0, 0.0, 0.0, 20.0]
+
+    # 6x6 刚度矩阵（行优先展平）
+    stiffness_arm: [100.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 100.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 100.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 100.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 100.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 100.0]
+
+    workspace_limits: [0.15, 1.75, -1.75, 1.75, 0.30, 1.40]
+    arm_max_vel: 0.80
+    arm_max_acc: 3.00
+    track_kp: [5.0, 5.0, 5.0, 10.0, 10.0, 10.0]
+    track_ki: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001]
+    track_integral_limit: [0.20, 0.20, 0.20, 0.20, 0.20, 0.20]

@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>xmate_cr7_script_py</name>
+  <version>0.1.0</version>
+  <description>Python client for XMate CR7 script service, mirroring the C++ cr7_script module.</description>
+  <maintainer email="maintainer@example.com">maintainer</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>coordinate</exec_depend>
+
+  <test_depend>pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

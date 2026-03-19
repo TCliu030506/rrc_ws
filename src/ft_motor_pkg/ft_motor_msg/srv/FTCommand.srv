@@ -1,0 +1,6 @@
+string command                # MOV / SET / FIX
+float64[2] motor_pos          # deg
+float64[2] motor_vel          # deg/s
+float64[2] motor_tim          # s
+---
+string result

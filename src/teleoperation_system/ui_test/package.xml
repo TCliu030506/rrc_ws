@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ui_test</name>
+  <version>0.0.0</version>
+  <description>TODO: Package description</description>
+  <maintainer email="3210101491@zju.edu.cn">liutiancheng</maintainer>
+  <license>TODO: License declaration</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
+  <depend>Qt5Core</depend>
+  <depend>Qt5Gui</depend>
+  <depend>Qt5Widgets</depend>
+  <depend>image_transport</depend>
+  <depend>cv_bridge</depend>
+  <depend>OpenCV</depend>
+  <depend>sensor_msgs</depend>
+  <depend>sigema7_msg</depend>
+  <depend>ui_control_msg</depend>
+
+  <build_depend>launch</build_depend>
+  <build_depend>launch_ros</build_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

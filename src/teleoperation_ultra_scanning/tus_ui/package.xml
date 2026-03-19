@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>tus_ui</name>
+  <version>0.0.0</version>
+  <description>TODO: Package description</description>
+  <maintainer email="14011673+liu-tiancheng0506@user.noreply.gitee.com">liutiancheng</maintainer>
+  <license>TODO: License declaration</license>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <depend>Qt5Core</depend>
+  <depend>Qt5Gui</depend>
+  <depend>Qt5Widgets</depend>
+  <depend>image_transport</depend>
+  <depend>cv_bridge</depend>
+  <depend>OpenCV</depend>
+  <depend>sensor_msgs</depend>
+  <depend>sigema7_msg</depend>
+  <depend>ui_control_msg</depend>
+  <depend>pyzmq</depend>
+
+  <build_depend>launch</build_depend>
+  <build_depend>launch_ros</build_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

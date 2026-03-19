@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="xmatecr7">
+  <link
+    name="base_link0">
+    <inertial>
+      <origin
+        xyz="-0.00504470138217468 -0.000931713927951557 0.0518277080335083"
+        rpy="0 0 0" />
+      <mass
+        value="4.79665805625664" />
+      <inertia
+        ixx="0.0192951447597582"
+        ixy="-1.46437481537965E-05"
+        ixz="-0.000315955922152215"
+        iyy="0.0227975799155337"
+        iyz="-0.000109328239173157"
+        izz="0.03195549145641" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/base_link0.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.592156862745098 0.666666666666667 0.682352941176471 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/base_link0.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="yao_link1">
+    <inertial>
+      <origin
+        xyz="-0.00824449462437967 0.00677907790168318 0.119549166943447"
+        rpy="0 0 0" />
+      <mass
+        value="4.49994369092824" />
+      <inertia
+        ixx="0.0239110357186472"
+        ixy="-0.000405292617503143"
+        ixz="0.0036639096848855"
+        iyy="0.0237405322528393"
+        iyz="-0.0029739544034329"
+        izz="0.0124936799920512" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/yao_link1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.592156862745098 0.666666666666667 0.682352941176471 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/yao_link1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="yao_joint1"
+    type="revolute">
+    <origin
+      xyz="0 -0.0022607 0.11998"
+      rpy="0.018086 0 0" />
+    <parent
+      link="base_link0" />
+    <child
+      link="yao_link1" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="194"
+      velocity="3.1416" />
+  </joint>
+  <link
+    name="dabi_link2">
+    <inertial>
+      <origin
+        xyz="0.0786062843265071 -0.19256417616674 0.176876856514936"
+        rpy="0 0 0" />
+      <mass
+        value="7.29848387531899" />
+      <inertia
+        ixx="0.205611801800359"
+        ixy="0.0775071269848743"
+        ixz="-0.000738324523226766"
+        iyy="0.0473697277543164"
+        iyz="0.00180835331166736"
+        izz="0.235745624352104" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/dabi_link2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/dabi_link2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="dabi_joint2"
+    type="revolute">
+    <origin
+      xyz="0 9.0442E-05 0.176"
+      rpy="-1.5708 0 0.88919" />
+    <parent
+      link="yao_link1" />
+    <child
+      link="dabi_link2" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="194"
+      velocity="3.1416" />
+  </joint>
+  <link
+    name="xiaobiqian_link3">
+    <inertial>
+      <origin
+        xyz="-0.0395539365679626 -0.0119031896200119 0.152786934561626"
+        rpy="0 0 0" />
+      <mass
+        value="2.08923559602291" />
+      <inertia
+        ixx="0.00385033197290203"
+        ixy="-0.00113605325959543"
+        ixz="0.00193369930135884"
+        iyy="0.00728440422321935"
+        iyz="0.000581790195880701"
+        izz="0.00716655751749185" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/xiaobiqian_link3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.592156862745098 0.666666666666667 0.682352941176471 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/xiaobiqian_link3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="xiaobiqian_joint3"
+    type="revolute">
+    <origin
+      xyz="0.18519 -0.45366 0.17"
+      rpy="3.1416 0 -2.754" />
+    <parent
+      link="dabi_link2" />
+    <child
+      link="xiaobiqian_link3" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="102"
+      velocity="4.084" />
+  </joint>
+  <link
+    name="xiaobihou_link4">
+    <inertial>
+      <origin
+        xyz="-0.0124944984906736 0.00499062948254075 0.281473762413118"
+        rpy="0 0 0" />
+      <mass
+        value="2.09862685919212" />
+      <inertia
+        ixx="0.00978126269461928"
+        ixy="5.71591559104411E-05"
+        ixz="0.00140108553707258"
+        iyy="0.00990116658672655"
+        iyz="-0.000560295587653278"
+        izz="0.00309546799458424" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/xiaobihou_link4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.592156862745098 0.666666666666667 0.682352941176471 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/xiaobihou_link4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="xiaobihou_joint4"
+    type="revolute">
+    <origin
+      xyz="0 0 0.17"
+      rpy="1.5708 0 -1.2785" />
+    <parent
+      link="xiaobiqian_link3" />
+    <child
+      link="xiaobihou_link4" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="60"
+      velocity="4.1888" />
+  </joint>
+  <link
+    name="shouwan_link5">
+    <inertial>
+      <origin
+        xyz="0.00634896055528589 -0.00687483831944452 0.138785545111914"
+        rpy="0 0 0" />
+      <mass
+        value="1.71714918039265" />
+      <inertia
+        ixx="0.00296010514755978"
+        ixy="0.000492934514846144"
+        ixz="0.000502572891118884"
+        iyy="0.00289520409149169"
+        iyz="-0.000536748465237372"
+        izz="0.00331980698485073" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/shouwan_link5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/shouwan_link5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="shouwan_joint5"
+    type="revolute">
+    <origin
+      xyz="0 0 0.36"
+      rpy="1.5708 0 -1.9508" />
+    <parent
+      link="xiaobihou_link4" />
+    <child
+      link="shouwan_link5" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="60"
+      velocity="4.1888" />
+  </joint>
+  <link
+    name="shuchufalan_link6">
+    <inertial>
+      <origin
+        xyz="-1.32816952427561E-05 0.000163995464025235 -0.028368146671532"
+        rpy="0 0 0" />
+      <mass
+        value="0.403264790990843" />
+      <inertia
+        ixx="0.000338471478589331"
+        ixy="-2.72738921505438E-07"
+        ixz="3.51662370450701E-08"
+        iyy="0.000341817028629875"
+        iyz="-4.34214762176968E-07"
+        izz="0.000524924288588026" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/shuchufalan_link6.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://xmatecr7/meshes/shuchufalan_link6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="shuchufalan_joint6"
+    type="revolute">
+    <origin
+      xyz="-0.086813 0.092696 0.15"
+      rpy="1.5708 0 -2.389" />
+    <parent
+      link="shouwan_link5" />
+    <child
+      link="shuchufalan_link6" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="60"
+      velocity="4.1888" />
+  </joint>
+</robot>

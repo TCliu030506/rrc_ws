@@ -1,0 +1,7 @@
+string  command
+uint8   id
+int16[] data
+---
+string  result
+---
+float64[]       joint    #rad

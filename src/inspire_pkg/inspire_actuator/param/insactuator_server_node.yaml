@@ -1,0 +1,5 @@
+insactuator_server_node:
+  ros__parameters:
+    pub_rate: 10
+    port: "/dev/ttyUSB0"
+    id: [0x04,0x05]

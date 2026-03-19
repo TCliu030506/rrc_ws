@@ -1,0 +1,29 @@
+# Polynomial fitting result for gamma(theta)
+# Format: gamma(theta) = p1*theta^n + p2*theta^(n-1) + ... + p_end
+
+Order: 5
+R2: 0.999999
+Coefficients (descending order):
+-7.224528412212080e-09 2.276266793868335e-06 -3.020979882296453e-04 1.604370428377871e-02 -1.410430451781137e+00 3.049488395261735e+02 
+
+# Parameters from set_parameter.m
+sl = 90.000000
+sl_s = 30.000000
+sl_fl3 = 30.000000
+fl1 = 50.000000
+fl2 = 50.000000
+fl4 = 70.000000
+gl1 = 40.000000
+fl4_g = 40.000000
+
+angle1 = 135.000000
+angle2 = 150.000000
+angle3 = 15.000000
+blade = 10.000000
+back = 15.530000
+plat = 16.790000
+angle4 = 115.280000
+angle5 = 54.210000
+grasp = 8.010000
+edge = 10.920000
+arm = 27.490000

@@ -1,0 +1,92 @@
+     8.0301   11.4681   2.0000
+    -8.0301   11.4681   2.0000
+    -8.0301  -11.4681   2.0000
+     8.0301  -11.4681   2.0000
+     0.0000   12.0000  -8.0000
+     0.0000  -12.0000  -8.0000
+     0.0000   12.0000 -18.0000
+     0.0000  -12.0000 -18.0000
+
+---
+HP-base
+
+Enter the name of the tool_frame
+(check file to make sure the tool_frame is in raw state!):HP-base
+Enter the name of the probe_frame:Probe
+points in local tool-coordinate: 
+[ 8.0301 11.4681  2.    ]
+[-8.0301 11.4681  2.    ]
+[ -8.0301 -11.4681   2.    ]
+[  8.0301 -11.4681   2.    ]
+[ 0. 12. -8.]
+[  0. -12.  -8.]
+[  0.  12. -18.]
+[  0. -12. -18.]
+Now we have 0 points of 8 collected, the next points is 1: [ 8.0301 11.4681  2.    ]
+Enter 1 to start collect in 10s, other to quit without saving: 1
+进度:[##############################] 99.0%This point:[42.35648288 32.03615813 52.56976993]
+Enter 1 to save this point, 0 to miss: 1
+Add 1 point:[42.35648288 32.03615813 52.56976993]
+Now we have 1 points of 8 collected, the next points is 2: [-8.0301 11.4681  2.    ]
+Enter 1 to start collect in 10s, other to quit without saving: 1
+进度:[##############################] 99.0%This point:[51.83434968 18.32140431 52.04579174]
+Enter 1 to save this point, 0 to miss: 1
+Add 2 point:[51.83434968 18.32140431 52.04579174]
+Now we have 2 points of 8 collected, the next points is 3: [ -8.0301 -11.4681   2.    ]
+Enter 1 to start collect in 10s, other to quit without saving: 1
+进度:[##############################] 99.0%This point:[51.37906024 19.73716187 29.62618825]
+Enter 1 to save this point, 0 to miss: 1
+Add 3 point:[51.37906024 19.73716187 29.62618825]
+Now we have 3 points of 8 collected, the next points is 4: [  8.0301 -11.4681   2.    ]
+Enter 1 to start collect in 10s, other to quit without saving: 1
+进度:[##############################] 99.0%This point:[43.00041614 32.32966015 30.22764678]
+Enter 1 to save this point, 0 to miss: 0
+Now we have 3 points of 8 collected, the next points is 4: [  8.0301 -11.4681   2.    ]
+Enter 1 to start collect in 10s, other to quit without saving: 1
+进度:[##############################] 99.0%This point:[42.84327953 32.18215561 30.15967277]
+Enter 1 to save this point, 0 to miss: 1
+Add 4 point:[42.84327953 32.18215561 30.15967277]
+Now we have 4 points of 8 collected, the next points is 5: [ 0. 12. -8.]
+Enter 1 to start collect in 10s, other to quit without saving: 1
+进度:[##############################] 99.0%This point:[38.00494597 20.53218184 53.27199598]
+Enter 1 to save this point, 0 to miss: 1
+Add 5 point:[38.00494597 20.53218184 53.27199598]
+Now we have 5 points of 8 collected, the next points is 6: [  0. -12.  -8.]
+Enter 1 to start collect in 10s, other to quit without saving: 1
+进度:[##############################] 99.0%This point:[39.25338258 20.49681064 29.37170211]
+Enter 1 to save this point, 0 to miss: 0
+Now we have 5 points of 8 collected, the next points is 6: [  0. -12.  -8.]
+Enter 1 to start collect in 10s, other to quit without saving: 1
+进度:[##############################] 99.0%This point:[39.25265732 20.28028171 29.29020652]
+Enter 1 to save this point, 0 to miss: 1
+Add 6 point:[39.25265732 20.28028171 29.29020652]
+Now we have 6 points of 8 collected, the next points is 7: [  0.  12. -18.]
+Enter 1 to start collect in 10s, other to quit without saving: 1
+进度:[##############################] 99.0%This point:[29.91085066 14.82432788 53.10737624]
+Enter 1 to save this point, 0 to miss: 1
+Add 7 point:[29.91085066 14.82432788 53.10737624]
+Now we have 7 points of 8 collected, the next points is 8: [  0. -12. -18.]
+Enter 1 to start collect in 10s, other to quit without saving: 1
+进度:[##############################] 99.0%This point:[31.13800572 14.59611446 29.28144   ]
+Enter 1 to save this point, 0 to miss: 1
+Add 8 point:[31.13800572 14.59611446 29.28144   ]
+Finished! We got points in refer tool-coordinate: 
+[42.35648288 32.03615813 52.56976993]
+[51.83434968 18.32140431 52.04579174]
+[51.37906024 19.73716187 29.62618825]
+[42.84327953 32.18215561 30.15967277]
+[38.00494597 20.53218184 53.27199598]
+[39.25265732 20.28028171 29.29020652]
+[29.91085066 14.82432788 53.10737624]
+[31.13800572 14.59611446 29.28144   ]
+Finished! We got transfer coordinate:[45.46335344 24.15331879 42.64152672  0.65634148  1.3421667   1.61642502]
+The points in transfered coordiante are:
+[ 6.91158677 10.41491352  3.75783961]
+[-9.3591738   7.01115771  5.12743149]
+[ -4.66565902 -14.20491096  -0.59092736]
+[ 10.06136766 -11.08067086  -1.76388778]
+[-1.38900466 12.39012783 -5.12862065]
+[  1.29594377 -10.83475346 -10.61883049]
+[ -2.77379533  14.68713118 -14.66419644]
+[ -0.0812654   -8.38299496 -20.11880838]
+Me:4.1175913356407365 mm

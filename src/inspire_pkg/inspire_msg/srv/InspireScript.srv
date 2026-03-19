@@ -1,0 +1,17 @@
+# inspire actuator action srv
+
+# M: set mode 1,2,3,^
+# P: move_pos pos
+# X: move_srv pos
+# V: move_vel pos vel
+# F: move_force force
+# W: move_speed and force
+# S: stop
+
+# int16[]: p, v, f
+
+string  command
+uint8   id
+int16[] data
+---
+string  result

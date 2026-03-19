@@ -1,0 +1,6 @@
+# PlannerCommand.srv
+float64[] target_joints
+float64 speed_limit
+---
+bool success
+string message

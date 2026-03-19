@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>teleoperation_control</name>
+  <version>0.0.0</version>
+  <description>TODO: Package description</description>
+  <maintainer email="3210101491@zju.edu.cn">liutiancheng</maintainer>
+  <license>TODO: License declaration</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>x_core_sdk</depend>
+  <depend>xmate_cr7_msg</depend>
+  <depend>sigema7_msg</depend>
+  <depend>sigema7_getpos</depend>
+  <depend>pf_control</depend>
+  <depend>pf_kinematics</depend>
+  <depend>ft_servo_motor_pkg</depend>
+  <depend>ui_control_msg</depend>
+  <depend>aimooe_sdk</depend>
+  <depend>ament_index_cpp</depend>
+  <depend>Eigen3</depend>
+
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,0 +1,6 @@
+# X6Action 服务定义
+int8     mode
+int64    maxspeed
+int64    pos
+---
+string   result
