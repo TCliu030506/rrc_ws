@@ -19,3 +19,4 @@ or "sudo usermod -aG dialout rus(username)"
 check: "ls -l /dev/ttyUSB*"
 
 - ros2 launch force_sensor forcesensor.launch.py 
+- ros2 launch force_sensor force_sensor_axis_6.launch.py 
