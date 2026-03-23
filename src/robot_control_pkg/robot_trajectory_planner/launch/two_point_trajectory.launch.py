@@ -14,10 +14,10 @@ def generate_launch_description():
                 'topic_desired_twist': '/desired_twist',
                 'topic_desired_accel': '/desired_accel',
                 'publish_rate': 125.0,
-                'cycle_period': 8.0,
-                'point_a': [0.360, 0.100, 0.450],
-                'point_b': [0.360, -0.200, 0.450],
-                'orientation_xyzw': [0.0, 0.0, 0.0, 1.0],
+                'cycle_period': 50.0,
+                'point_a': [0.360, 0.100, 0.260],
+                'point_b': [0.360, -0.200, 0.260],
+                'orientation_xyzw': [1.0, 0.0, 0.0, 0.0],
             }],
         )
     ])

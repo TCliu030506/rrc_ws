@@ -112,32 +112,32 @@ def generate_launch_description():
         }.items()
     )
 
-    # desired_trajectory_launch = IncludeLaunchDescription(
-    #     PythonLaunchDescriptionSource(
-    #         PathJoinSubstitution([
-    #             FindPackageShare('robot_trajectory_planner'),
-    #             'launch',
-    #             'two_point_trajectory.launch.py'
-    #         ])
-    #     )
-    # )
-
     desired_trajectory_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
                 FindPackageShare('robot_trajectory_planner'),
                 'launch',
-                'teleoperation_desired_trajectory.launch.py'
+                'two_point_trajectory.launch.py'
             ])
-        ),
-        launch_arguments={
-            'topic_master_state': '/phantom/state',
-            'topic_ui_control': 'tus_control',
-            'topic_desired_pose': topic_desired_pose,
-            'topic_desired_twist': topic_desired_twist,
-            'topic_desired_accel': topic_desired_accel,
-        }.items()
+        )
     )
+
+    # desired_trajectory_launch = IncludeLaunchDescription(
+    #     PythonLaunchDescriptionSource(
+    #         PathJoinSubstitution([
+    #             FindPackageShare('robot_trajectory_planner'),
+    #             'launch',
+    #             'teleoperation_desired_trajectory.launch.py'
+    #         ])
+    #     ),
+    #     launch_arguments={
+    #         'topic_master_state': '/phantom/state',
+    #         'topic_ui_control': 'tus_control',
+    #         'topic_desired_pose': topic_desired_pose,
+    #         'topic_desired_twist': topic_desired_twist,
+    #         'topic_desired_accel': topic_desired_accel,
+    #     }.items()
+    # )
 
     speedl_bridge_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -283,7 +283,7 @@ def generate_launch_description():
         DeclareLaunchArgument('control_wrench_publish_rate', default_value='125.0'),
         DeclareLaunchArgument('control_force_x', default_value='0.0'),
         DeclareLaunchArgument('control_force_y', default_value='0.0'),
-        DeclareLaunchArgument('control_force_z', default_value='0.0'),
+        DeclareLaunchArgument('control_force_z', default_value='-10.0'),
         DeclareLaunchArgument('control_torque_x', default_value='0.0'),
         DeclareLaunchArgument('control_torque_y', default_value='0.0'),
         DeclareLaunchArgument('control_torque_z', default_value='0.0'),
@@ -300,7 +300,7 @@ def generate_launch_description():
         DeclareLaunchArgument('speedl_zero_command_epsilon', default_value='1e-6'),
         DeclareLaunchArgument(
             'admittance_params_file',
-            default_value='/home/liutiancheng/Lab_WS/zzrobot_ws/src/robot_control_pkg/robot_admittance_control/config/admittance_params_ros2.yaml'
+            default_value='/home/liutiancheng/Lab_WS/rrc_ws/src/robot_control_pkg/robot_admittance_control/config/admittance_params_ros2.yaml'
         ),
 
         TimerAction(period=0.0, actions=[ur_driver_launch]),

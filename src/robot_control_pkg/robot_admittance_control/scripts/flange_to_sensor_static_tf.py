@@ -18,7 +18,8 @@ class FlangeToSensorStaticTF(Node):
         t.transform.translation.y = 0.0
         t.transform.translation.z = 0.010      # 沿Z轴正向移动0.010m
         # 绕Z轴正向旋转60度
-        theta = math.radians(60)
+        # theta = math.radians(60)
+        theta = math.radians(180.0)
         t.transform.rotation.x = 0.0
         t.transform.rotation.y = 0.0
         t.transform.rotation.z = math.sin(theta/2)
@@ -39,7 +40,7 @@ class FlangeToSensorStaticTF(Node):
         t.transform.translation.x = 0.0
         t.transform.translation.y = 0.0
         t.transform.translation.z = 0.010
-        theta = math.radians(60)
+        theta = math.radians(180.0)
         t.transform.rotation.x = 0.0
         t.transform.rotation.y = 0.0
         t.transform.rotation.z = math.sin(theta/2)

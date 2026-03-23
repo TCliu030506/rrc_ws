@@ -133,6 +133,11 @@ protected:
   double pose_smoothing_alpha_angular_{0.20};    // 姿态slerp系数[0,1]
   bool output_smoothing_initialized_{false};      // 滤波状态是否已初始化
   bool pose_smoothing_initialized_{false};        // 位姿滤波状态是否已初始化
+  bool enable_wrench_filter_{true};               // 是否启用外力一阶滤波
+  double wrench_filter_tau_{0.015};               // 外力滤波时间常数(s)
+  bool wrench_filter_initialized_{false};         // 外力滤波状态是否已初始化
+  Vector6d wrench_external_filtered_;             // 外力滤波后结果
+  rclcpp::Time last_wrench_filter_time_;          // 上一次外力滤波时间
 
   // --- 工作空间限制 ---
   Vector6d workspace_limits_; // 工作空间边界
@@ -178,6 +183,7 @@ protected:
 
   // --- 控制主流程 ---
   void compute_admittance();       // 顺应性动力学计算
+  Vector6d filter_external_wrench(const Vector6d & raw_wrench);
   void apply_pose_smoothing(const Vector3d & raw_position, const Quaterniond & raw_orientation);
   void apply_twist_smoothing(const Vector6d & raw_twist);
 

@@ -14,12 +14,12 @@ class TwoPointTrajectoryNode(Node):
         self.declare_parameter('topic_desired_twist', '/desired_twist')
         self.declare_parameter('topic_desired_accel', '/desired_accel')
 
-        self.declare_parameter('publish_rate', 100.0)
-        self.declare_parameter('cycle_period', 8.0)
+        self.declare_parameter('publish_rate', 125.0)
+        self.declare_parameter('cycle_period', 20.0)
 
         self.declare_parameter('point_a', [0.360, 0.100, 0.450])
         self.declare_parameter('point_b', [0.360, -0.200, 0.450])
-        self.declare_parameter('orientation_xyzw', [0.0, 0.0, 0.0, 1.0])
+        self.declare_parameter('orientation_xyzw', [1.0, 0.0, 0.0, 0.0])
 
         topic_pose = self.get_parameter('topic_desired_pose').value
         topic_twist = self.get_parameter('topic_desired_twist').value

@@ -81,6 +81,12 @@ AdmittanceController::AdmittanceController(
   if (!node_->has_parameter("pose_smoothing_alpha_angular")) {
     node_->declare_parameter("pose_smoothing_alpha_angular", 0.20);
   }
+  if (!node_->has_parameter("enable_wrench_filter")) {
+    node_->declare_parameter("enable_wrench_filter", true);
+  }
+  if (!node_->has_parameter("wrench_filter_tau")) {
+    node_->declare_parameter("wrench_filter_tau", 0.015);
+  }
   std::string topic_desired_pose;
   std::string topic_desired_twist;
   std::string topic_desired_accel;
@@ -98,6 +104,8 @@ AdmittanceController::AdmittanceController(
   node_->get_parameter("twist_smoothing_alpha_angular", twist_smoothing_alpha_angular_);
   node_->get_parameter("pose_smoothing_alpha_linear", pose_smoothing_alpha_linear_);
   node_->get_parameter("pose_smoothing_alpha_angular", pose_smoothing_alpha_angular_);
+  node_->get_parameter("enable_wrench_filter", enable_wrench_filter_);
+  node_->get_parameter("wrench_filter_tau", wrench_filter_tau_);
 
   // 平滑系数约束到[0,1]：0=完全沿用上一次输出(最平滑但滞后最大)，1=不过滤(最跟手)
   if (twist_smoothing_alpha_linear_ < 0.0) twist_smoothing_alpha_linear_ = 0.0;
@@ -108,6 +116,7 @@ AdmittanceController::AdmittanceController(
   if (pose_smoothing_alpha_linear_ > 1.0) pose_smoothing_alpha_linear_ = 1.0;
   if (pose_smoothing_alpha_angular_ < 0.0) pose_smoothing_alpha_angular_ = 0.0;
   if (pose_smoothing_alpha_angular_ > 1.0) pose_smoothing_alpha_angular_ = 1.0;
+  if (wrench_filter_tau_ < 1e-4) wrench_filter_tau_ = 1e-4;
 
   if (track_kp.size() != 6 || track_ki.size() != 6 || track_integral_limit.size() != 6) {
     throw std::runtime_error("track_kp/track_ki/track_integral_limit must be length 6");
@@ -208,11 +217,14 @@ AdmittanceController::AdmittanceController(
   // 初始化积分器和TF标志
   arm_desired_twist_.setZero();
   arm_desired_twist_filtered_.setZero();
+  wrench_external_filtered_.setZero();
   admittance_twist_.setZero();
   admittance_displacement_.setZero();      // 新增
   track_error_integral_.setZero();
   output_smoothing_initialized_ = false;
   pose_smoothing_initialized_ = false;
+  wrench_filter_initialized_ = false;
+  last_wrench_filter_time_ = node_->get_clock()->now();
   ft_arm_ready_ = false;
   arm_world_ready_ = false;
   world_arm_ready_ = false;
@@ -331,6 +343,36 @@ void AdmittanceController::compute_admittance()
 
   apply_twist_smoothing(raw_arm_desired_twist);
 
+}
+
+Vector6d AdmittanceController::filter_external_wrench(const Vector6d & raw_wrench)
+{
+  if (!enable_wrench_filter_) {
+    return raw_wrench;
+  }
+
+  const rclcpp::Time now_time = node_->get_clock()->now();
+
+  if (!wrench_filter_initialized_) {
+    wrench_external_filtered_ = raw_wrench;
+    last_wrench_filter_time_ = now_time;
+    wrench_filter_initialized_ = true;
+    return wrench_external_filtered_;
+  }
+
+  double dt = (now_time - last_wrench_filter_time_).seconds();
+  last_wrench_filter_time_ = now_time;
+
+  if (dt <= 1e-6 || dt > 0.1) {
+    dt = 0.001;
+  }
+
+  double alpha = dt / (wrench_filter_tau_ + dt);
+  if (alpha < 0.0) alpha = 0.0;
+  if (alpha > 1.0) alpha = 1.0;
+
+  wrench_external_filtered_ = alpha * raw_wrench + (1.0 - alpha) * wrench_external_filtered_;
+  return wrench_external_filtered_;
 }
 
 void AdmittanceController::apply_twist_smoothing(const Vector6d & raw_twist)
@@ -458,6 +500,7 @@ void AdmittanceController::desired_accel_callback(
 void AdmittanceController::wrench_external_callback(
   const geometry_msgs::msg::WrenchStamped::SharedPtr msg) {
   Vector6d wrench_ft_frame;
+  Vector6d raw_wrench_base;
   if (ft_arm_ready_) {
     // 读取FT传感器自身坐标系下的力/力矩
     wrench_ft_frame << msg->wrench.force.x, msg->wrench.force.y,
@@ -473,7 +516,8 @@ void AdmittanceController::wrench_external_callback(
     } else if (!get_wrench_transform(rotation_tool_, base_frame_, source_frame)) {
       return;
     }
-    wrench_external_ <<  rotation_tool_  * wrench_ft_frame;
+    raw_wrench_base << rotation_tool_ * wrench_ft_frame;
+    wrench_external_ << filter_external_wrench(raw_wrench_base);
   }
 }
 

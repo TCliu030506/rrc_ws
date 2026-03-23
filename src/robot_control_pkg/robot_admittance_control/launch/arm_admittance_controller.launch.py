@@ -38,7 +38,7 @@ def generate_launch_description():
         DeclareLaunchArgument("pose_smoothing_alpha_angular", default_value="0.20"),
         DeclareLaunchArgument(
             "admittance_params_file",
-            default_value="/home/liutiancheng/Lab_WS/zzrobot_ws/src/robot_control_pkg/robot_admittance_control/config/admittance_params_ros2.yaml",
+            default_value="/home/liutiancheng/Lab_WS/rrc_ws/src/robot_control_pkg/robot_admittance_control/config/admittance_params_ros2.yaml",
         ),
         Node(
             package="robot_admittance_control",
