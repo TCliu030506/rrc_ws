@@ -1,0 +1,9 @@
+gravity_compensation_node:
+  ros__parameters:
+    wrench_in_topic: /ft_sensor/wrench_raw
+    wrench_out_topic: /ft_sensor/wrench_compensated
+    gravity_wrench_topic: /ft_sensor/wrench_gravity_model
+    world_frame: base
+    sensor_frame: sensor_frame
+    gravity_norm: 9.81
+    calibration_file: ~/.ros/tool_gravity_calibration.json
