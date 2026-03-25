@@ -49,6 +49,46 @@ class GravityCalibrationNode(Node):
         self.solve_srv = self.create_service(Trigger, 'solve_and_save', self.solve_and_save_cb)
         self.clear_srv = self.create_service(Trigger, 'clear_samples', self.clear_samples_cb)
 
+        # 新增：采集一帧数据的服务
+        self.collect_one_srv = self.create_service(Trigger, 'collect_one_sample', self.collect_one_sample_cb)
+    def collect_one_sample_cb(self, _req, res):
+        """采集一帧数据（仅采集一次）"""
+        # 获取当前wrench和重力
+        msg = self.latest_wrench
+        if msg is None:
+            res.success = False
+            res.message = 'No wrench data received yet.'
+            return res
+
+        g_sensor = self.try_get_gravity_sensor()
+        if g_sensor is None:
+            res.success = False
+            res.message = 'TF lookup failed.'
+            return res
+
+        force = np.array([
+            msg.wrench.force.x,
+            msg.wrench.force.y,
+            msg.wrench.force.z,
+        ], dtype=float)
+        torque = np.array([
+            msg.wrench.torque.x,
+            msg.wrench.torque.y,
+            msg.wrench.torque.z,
+        ], dtype=float)
+
+        self.samples.append(
+            {
+                'g_sensor': g_sensor,
+                'force': force,
+                'torque': torque,
+            }
+        )
+        res.success = True
+        res.message = f'Collected one sample. Total samples: {len(self.samples)}'
+        self.get_logger().info(res.message)
+        return res
+
         self.get_logger().info(
             f'Calibration node ready. wrench_topic={self.wrench_topic}, '
             f'world_frame={self.world_frame}, sensor_frame={self.sensor_frame}, '
