@@ -68,6 +68,9 @@ class URCONTROL:
     def get_tcp_pose(self):
         return self.rtde_r.getActualTCPPose()
     
+    def get_tcp_vel(self):
+        return self.rtde_r.getActualTCPSpeed()
+        
     def disconnect(self):
         if self.rtde_c:
             self.rtde_c.disconnect()

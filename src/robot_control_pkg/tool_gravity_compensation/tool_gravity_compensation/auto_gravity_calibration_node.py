@@ -21,6 +21,25 @@ WAYPOINTS = [
 ]
 
 class AutoGravityCalibrationNode(Node):
+    def wait_until_stable(self, threshold=0.001, duration=1.0, check_period=0.05):
+        """
+        等待机械臂末端速度低于阈值持续一段时间，判定为静止。
+        threshold: 速度阈值(m/s)
+        duration: 需持续静止的时间(s)
+        check_period: 检查周期(s)
+        """
+        stable_time = 0.0
+        while True:
+            tcp_speed = self.ur.rtde_r.getActualTCPSpeed()  # 返回6维速度
+            linear_speed = (tcp_speed[0]**2 + tcp_speed[1]**2 + tcp_speed[2]**2) ** 0.5
+            if linear_speed < threshold:
+                stable_time += check_period
+                if stable_time >= duration:
+                    break
+            else:
+                stable_time = 0.0
+            time.sleep(check_period)
+            
     def __init__(self):
         super().__init__('auto_gravity_calibration_node')
         self.ur = URCONTROL('192.168.1.102')  # 修改为你的UR5 IP
@@ -53,7 +72,7 @@ class AutoGravityCalibrationNode(Node):
         for idx, pose in enumerate(WAYPOINTS):
             self.get_logger().info(f'移动到第{idx+1}个位姿: {pose}')
             self.ur.movel(pose)
-            time.sleep(2.5)  # 等待机械臂稳定
+            self.wait_until_stable()
             self.get_logger().info('采集当前位姿数据...')
             self.call_service(self.collect_srv)
             time.sleep(0.5)
