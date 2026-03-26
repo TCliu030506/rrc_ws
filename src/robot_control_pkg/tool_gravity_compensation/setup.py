@@ -25,6 +25,7 @@ setup(
         'console_scripts': [
             'gravity_calibration_node = tool_gravity_compensation.gravity_calibration_node:main',
             'gravity_compensation_node = tool_gravity_compensation.gravity_compensation_node:main',
+            'auto_gravity_calibration_node = tool_gravity_compensation.auto_gravity_calibration_node:main',
         ],
     },
 )

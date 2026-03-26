@@ -17,6 +17,7 @@
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>tf2_geometry_msgs</exec_depend>
+  <exec_depend>ur5_rtde_control</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

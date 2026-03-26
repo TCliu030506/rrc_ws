@@ -6,8 +6,11 @@ from launch.conditions import IfCondition
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
 
+from ament_index_python.packages import get_package_share_directory
+import os
 
 def generate_launch_description():
+
     global_log_level = LaunchConfiguration('global_log_level')
 
     ur_type = LaunchConfiguration('ur_type')
@@ -62,6 +65,16 @@ def generate_launch_description():
 
     admittance_params_file = LaunchConfiguration('admittance_params_file')
 
+    gravity_comp_pkg_share = get_package_share_directory('tool_gravity_compensation')
+    gravity_comp_params = os.path.join(gravity_comp_pkg_share, 'config', 'gravity_compensation_params.yaml')
+    gravity_compensation_node = Node(
+        package='tool_gravity_compensation',
+        executable='gravity_compensation_node',
+        name='gravity_compensation_node',
+        output='screen',
+        parameters=[gravity_comp_params],
+    )
+
     ur_driver_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
@@ -112,32 +125,32 @@ def generate_launch_description():
         }.items()
     )
 
-    desired_trajectory_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution([
-                FindPackageShare('robot_trajectory_planner'),
-                'launch',
-                'two_point_trajectory.launch.py'
-            ])
-        )
-    )
-
     # desired_trajectory_launch = IncludeLaunchDescription(
     #     PythonLaunchDescriptionSource(
     #         PathJoinSubstitution([
     #             FindPackageShare('robot_trajectory_planner'),
     #             'launch',
-    #             'teleoperation_desired_trajectory.launch.py'
+    #             'two_point_trajectory.launch.py'
     #         ])
-    #     ),
-    #     launch_arguments={
-    #         'topic_master_state': '/phantom/state',
-    #         'topic_ui_control': 'tus_control',
-    #         'topic_desired_pose': topic_desired_pose,
-    #         'topic_desired_twist': topic_desired_twist,
-    #         'topic_desired_accel': topic_desired_accel,
-    #     }.items()
+    #     )
     # )
+
+    desired_trajectory_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('robot_trajectory_planner'),
+                'launch',
+                'teleoperation_desired_trajectory.launch.py'
+            ])
+        ),
+        launch_arguments={
+            'topic_master_state': '/phantom/state',
+            'topic_ui_control': 'tus_control',
+            'topic_desired_pose': topic_desired_pose,
+            'topic_desired_twist': topic_desired_twist,
+            'topic_desired_accel': topic_desired_accel,
+        }.items()
+    )
 
     speedl_bridge_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -305,13 +318,15 @@ def generate_launch_description():
 
         TimerAction(period=0.0, actions=[ur_driver_launch]),
         TimerAction(period=1.0, actions=[flange_to_sensor_tf_node]),
-        TimerAction(period=2.0, actions=[force_sensor_launch]),
-        TimerAction(period=3.0, actions=[tcp_twist_estimator_launch]),
-        TimerAction(period=3.5, actions=[desired_trajectory_launch]),
-        TimerAction(period=4.0, actions=[control_wrench_publisher_launch]),
-        # TimerAction(period=4.5, actions=[speedl_bridge_launch]),
-        TimerAction(period=4.5, actions=[rtde_servol_pose_controller_launch]),
-        # TimerAction(period=4.5, actions=[rtde_velocity_publisher_launch]),
-        TimerAction(period=5.0, actions=[admittance_controller_launch]),
+        TimerAction(period=1.2, actions=[force_sensor_launch]),
+        TimerAction(period=1.5, actions=[gravity_compensation_node]),
+        TimerAction(period=2.0, actions=[tcp_twist_estimator_launch]),
+        TimerAction(period=2.5, actions=[desired_trajectory_launch]),
+        TimerAction(period=2.8, actions=[control_wrench_publisher_launch]),
+        # TimerAction(period=3.0, actions=[speedl_bridge_launch]),
+        TimerAction(period=3.0, actions=[rtde_servol_pose_controller_launch]),
+        # TimerAction(period=3.0, actions=[rtde_velocity_publisher_launch]),
+        TimerAction(period=3.5, actions=[admittance_controller_launch]),
+
 
     ])

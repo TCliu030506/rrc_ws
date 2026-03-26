@@ -6,18 +6,37 @@ from std_srvs.srv import Trigger
 import time
 import sys
 import os
+import math
 
 # 导入UR5控制接口
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../../teleoperation_ultra_scanning/ur5_rtde_control/ur5_rtde_control'))
-from ur5_rtde_control import URCONTROL
+from ur5_rtde_control.ur5_rtde_control import URCONTROL
 
-# 你可以根据实际情况自定义采样位姿
+PI = math.pi
+
 WAYPOINTS = [
-    [0.3, -0.2, 0.5, 0, 3.14, 0],
-    [0.3, 0.2, 0.5, 0, 3.14, 0],
-    [0.5, 0.0, 0.4, 0, 3.14, 0],
-    [0.4, -0.3, 0.6, 0, 3.14, 0],
-    [0.4, 0.3, 0.6, 0, 3.14, 0],
+    # 零姿态基准
+    [0.25, -0.35, 0.50, 0.0, 0.0, 0.0],
+
+    # 单一轴旋转：roll 各种角度
+    [0.26, -0.34, 0.51,  PI/6,  0.0, 0.0],
+    [0.24, -0.36, 0.49,  PI/4,  0.0, 0.0],
+    [0.27, -0.33, 0.52,  PI/3,  0.0, 0.0],
+
+    # 单一轴旋转：pitch 各种角度
+    [0.25, -0.35, 0.50, 0.0,  PI/6,  0.0],
+    [0.25, -0.35, 0.50, 0.0,  PI/4,  0.0],
+    [0.25, -0.35, 0.50, 0.0,  PI/3,  0.0],
+
+    # 单一轴旋转：yaw 各种角度
+    [0.25, -0.35, 0.50, 0.0, 0.0,  PI/6],
+    [0.25, -0.35, 0.50, 0.0, 0.0,  PI/4],
+    [0.25, -0.35, 0.50, 0.0, 0.0,  PI/3],
+    [0.25, -0.35, 0.50, 0.0, 0.0,  PI/2],
+    [0.25, -0.35, 0.50, 0.0, 0.0,  PI],
+    [0.25, -0.35, 0.50, 0.0, 0.0, -PI/6],
+    [0.25, -0.35, 0.50, 0.0, 0.0, -PI/4],
+    [0.25, -0.35, 0.50, 0.0, 0.0, 0.0],
+
 ]
 
 class AutoGravityCalibrationNode(Node):
@@ -71,7 +90,7 @@ class AutoGravityCalibrationNode(Node):
 
         for idx, pose in enumerate(WAYPOINTS):
             self.get_logger().info(f'移动到第{idx+1}个位姿: {pose}')
-            self.ur.movel(pose)
+            self.ur.movel(pose, 0.05, 0.1)  # 慢速移动到位
             self.wait_until_stable()
             self.get_logger().info('采集当前位姿数据...')
             self.call_service(self.collect_srv)
