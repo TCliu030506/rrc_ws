@@ -90,7 +90,8 @@ class AutoGravityCalibrationNode(Node):
 
         for idx, pose in enumerate(WAYPOINTS):
             self.get_logger().info(f'移动到第{idx+1}个位姿: {pose}')
-            self.ur.movel(pose, 0.05, 0.1)  # 慢速移动到位
+            # self.ur.movel(pose, 0.05, 0.1)  # 慢速移动到位
+            self.ur.moveJ_IK(pose, 0.05, 0.1)  # 慢速移动到位
             self.wait_until_stable()
             self.get_logger().info('采集当前位姿数据...')
             self.call_service(self.collect_srv)

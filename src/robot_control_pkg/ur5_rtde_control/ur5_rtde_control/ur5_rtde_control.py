@@ -78,6 +78,53 @@ class URCONTROL:
             self.rtde_r.disconnect()
         print("已断开UR连接")
 
+    def moveJ_IK(
+        self,
+        pose,
+        speed: float = 1.05,
+        acceleration: float = 1.4,
+        asynchronous: bool = False,
+    ) -> bool:
+        """
+        Move to pose (linear in joint-space) using inverse kinematics.
+        :param pose: 目标位姿（6维，笛卡尔空间）
+        :param speed: 关节最大速度 [rad/s]
+        :param acceleration: 关节最大加速度 [rad/s^2]
+        :param asynchronous: 是否异步
+        :return: 是否成功
+        """
+        return self.rtde_c.moveJ_IK(pose, speed, acceleration, asynchronous)
+
+    def moveJ(
+        self,
+        q,
+        speed: float = 1.05,
+        acceleration: float = 1.4,
+        asynchronous: bool = False,
+    ) -> bool:
+        """
+        Move to joint position (linear in joint-space)
+        :param q: 目标关节角度（6维）
+        :param speed: 关节最大速度 [rad/s]
+        :param acceleration: 关节最大加速度 [rad/s^2]
+        :param asynchronous: 是否异步
+        :return: 是否成功
+        """
+        return self.rtde_c.moveJ(q, speed, acceleration, asynchronous)
+
+    def moveJ_path(
+        self,
+        path,
+        asynchronous: bool = False,
+    ) -> bool:
+        """
+        Move to each joint position specified in a path.
+        :param path: 路径点列表，每个点为关节角度（6维），可包含加速度、速度、blend等
+        :param asynchronous: 是否异步
+        :return: 是否成功
+        """
+        return self.rtde_c.moveJ(path, asynchronous)
+
 
 # example
 # if __name__ == "__main__":
