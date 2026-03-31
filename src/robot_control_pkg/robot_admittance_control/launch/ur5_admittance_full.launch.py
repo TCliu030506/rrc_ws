@@ -296,7 +296,7 @@ def generate_launch_description():
         DeclareLaunchArgument('control_wrench_publish_rate', default_value='125.0'),
         DeclareLaunchArgument('control_force_x', default_value='0.0'),
         DeclareLaunchArgument('control_force_y', default_value='0.0'),
-        DeclareLaunchArgument('control_force_z', default_value='-10.0'),
+        DeclareLaunchArgument('control_force_z', default_value='0.0'),
         DeclareLaunchArgument('control_torque_x', default_value='0.0'),
         DeclareLaunchArgument('control_torque_y', default_value='0.0'),
         DeclareLaunchArgument('control_torque_z', default_value='0.0'),

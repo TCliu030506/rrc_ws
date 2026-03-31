@@ -24,6 +24,7 @@ setup(
         'console_scripts': [
             'two_point_trajectory_node = robot_trajectory_planner.two_point_trajectory_node:main',
             'teleoperation_trajectory_node = robot_trajectory_planner.teleoperation_trajectory_node:main',
+            'teleoperation_feedback_node = robot_trajectory_planner.teleoperation_feedback_node:main',
         ],
     },
 )

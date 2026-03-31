@@ -193,6 +193,8 @@ public:
         state->lock_pos[0] = omnifeed->position.x;
         state->lock_pos[1] = omnifeed->position.y;
         state->lock_pos[2] = omnifeed->position.z;
+
+        RCLCPP_INFO(rclcpp::get_logger("omni_haptic_node"), "Received feedback: %f, %f, %f", state->force[0], state->force[1], state->force[2]);
     }
 
     void publish_omni_state()
@@ -323,6 +325,7 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData)
     feedback[1] = omni_state->force[2];
     feedback[2] = -omni_state->force[1];
     hdSetDoublev(HD_CURRENT_FORCE, feedback);
+    // RCLCPP_INFO(rclcpp::get_logger("omni_haptic_node"), "Published feedback: %f, %f, %f", feedback[0], feedback[1], feedback[2]);
 
     // Get buttons
     int nButtons = 0;

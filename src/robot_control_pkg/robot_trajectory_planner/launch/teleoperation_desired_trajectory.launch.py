@@ -116,6 +116,20 @@ def generate_launch_description():
         ],
     )
 
+    teleoperation_feedback_node = Node(
+        package='robot_trajectory_planner',
+        executable='teleoperation_feedback_node',
+        output='screen',
+        name='teleoperation_feedback_node',
+        parameters=[
+            {
+                'wrench_topic': '/external_force_torque_wrench_compensated',
+                'feedback_topic': '/force_feedback',
+                'position': [0.0, 0.0, 0.0],
+            }
+        ],
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument('omni_name', default_value='phantom'),
         DeclareLaunchArgument('reference_frame', default_value='/map'),
@@ -130,7 +144,7 @@ def generate_launch_description():
         
         DeclareLaunchArgument('tg_button_topic', default_value='/phantom/button'),
         DeclareLaunchArgument('tg_service_name', default_value='set_grip'),
-        DeclareLaunchArgument('tg_port', default_value='/dev/tg_gripper'),
+        DeclareLaunchArgument('tg_port', default_value='/dev/ttyACM0'),
         DeclareLaunchArgument('tg_baudrate', default_value='1000000'),
         DeclareLaunchArgument('tg_protocol', default_value='modbus_rtu'),
         DeclareLaunchArgument('tg_device_address', default_value='1'),
@@ -142,6 +156,7 @@ def generate_launch_description():
         teleop_trajectory_node,
         tg_teleoperation_node,
         ui_node,
+        teleoperation_feedback_node,
         RegisterEventHandler(
             OnProcessExit(
                 target_action=ui_node,
