@@ -67,6 +67,7 @@ def generate_launch_description():
 
     gravity_comp_pkg_share = get_package_share_directory('tool_gravity_compensation')
     gravity_comp_params = os.path.join(gravity_comp_pkg_share, 'config', 'gravity_compensation_params.yaml')
+    force_compensated_topic_name = LaunchConfiguration('force_compensated_topic_name')
     gravity_compensation_node = Node(
         package='tool_gravity_compensation',
         executable='gravity_compensation_node',
@@ -125,32 +126,32 @@ def generate_launch_description():
         }.items()
     )
 
-    # desired_trajectory_launch = IncludeLaunchDescription(
-    #     PythonLaunchDescriptionSource(
-    #         PathJoinSubstitution([
-    #             FindPackageShare('robot_trajectory_planner'),
-    #             'launch',
-    #             'two_point_trajectory.launch.py'
-    #         ])
-    #     )
-    # )
-
     desired_trajectory_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
                 FindPackageShare('robot_trajectory_planner'),
                 'launch',
-                'teleoperation_desired_trajectory.launch.py'
+                'two_point_trajectory.launch.py'
             ])
-        ),
-        launch_arguments={
-            'topic_master_state': '/phantom/state',
-            'topic_ui_control': 'tus_control',
-            'topic_desired_pose': topic_desired_pose,
-            'topic_desired_twist': topic_desired_twist,
-            'topic_desired_accel': topic_desired_accel,
-        }.items()
+        )
     )
+
+    # desired_trajectory_launch = IncludeLaunchDescription(
+    #     PythonLaunchDescriptionSource(
+    #         PathJoinSubstitution([
+    #             FindPackageShare('robot_trajectory_planner'),
+    #             'launch',
+    #             'teleoperation_desired_trajectory.launch.py'
+    #         ])
+    #     ),
+    #     launch_arguments={
+    #         'topic_master_state': '/phantom/state',
+    #         'topic_ui_control': 'tus_control',
+    #         'topic_desired_pose': topic_desired_pose,
+    #         'topic_desired_twist': topic_desired_twist,
+    #         'topic_desired_accel': topic_desired_accel,
+    #     }.items()
+    # )
 
     speedl_bridge_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -207,7 +208,7 @@ def generate_launch_description():
         launch_arguments={
             'pose_topic_arm': ee_pose_topic,
             'twist_topic_arm': ee_twist_topic,
-            'wrench_ext_topic_arm': force_topic_name,
+            'wrench_ext_topic_arm': force_compensated_topic_name,
             'wrench_ctr_topic_arm': topic_control_wrench,
             'cmd_topic_arm': topic_arm_command,
             'pose_cmd_topic_arm': topic_arm_pose_command,
@@ -271,6 +272,7 @@ def generate_launch_description():
         # DeclareLaunchArgument('force_frame_id', default_value='base'),
         DeclareLaunchArgument('force_frame_id', default_value='sensor_frame'),
         DeclareLaunchArgument('force_topic_name', default_value='/external_force_torque_wrench'),
+        DeclareLaunchArgument('force_compensated_topic_name', default_value='/external_force_torque_wrench_compensated'),
         DeclareLaunchArgument('force_auto_zero', default_value='true'),
 
         DeclareLaunchArgument('tcp_pose_topic', default_value='/tcp_pose_broadcaster/pose'),
