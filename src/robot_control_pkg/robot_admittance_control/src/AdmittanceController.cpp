@@ -547,12 +547,12 @@ void AdmittanceController::send_commands_to_robot() {
   arm_twist_cmd.angular.x = arm_desired_twist_(3);
   arm_twist_cmd.angular.y = arm_desired_twist_(4);
   arm_twist_cmd.angular.z = arm_desired_twist_(5);
-  RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 100,
-    "Desired linear velocity: %.4f %.4f %.4f",
-    arm_twist_cmd.linear.x, arm_twist_cmd.linear.y, arm_twist_cmd.linear.z);
-  RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 100,
-    "Desired angular velocity: %.4f %.4f %.4f",
-    arm_twist_cmd.angular.x, arm_twist_cmd.angular.y, arm_twist_cmd.angular.z);
+  // RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 100,
+  //   "Desired linear velocity: %.4f %.4f %.4f",
+  //   arm_twist_cmd.linear.x, arm_twist_cmd.linear.y, arm_twist_cmd.linear.z);
+  // RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 100,
+  //   "Desired angular velocity: %.4f %.4f %.4f",
+  //   arm_twist_cmd.angular.x, arm_twist_cmd.angular.y, arm_twist_cmd.angular.z);
   pub_arm_cmd_->publish(arm_twist_cmd);
 
   // 同步发布动力学计算后的期望位置（用于位置执行链，如 servoL）
@@ -604,8 +604,8 @@ void AdmittanceController::limit_to_workspace() {
   double ee_base_norm   = (arm_real_position_arm_).norm();
   double rec_operating_limit = 1.15; // 真实机器人
   double dist_limit = rec_operating_limit - ee_base_norm; 
-  RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 100,
-    "||x_ee-w_limit||: %.4f", dist_limit);
+  // RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 100,
+  //   "||x_ee-w_limit||: %.4f", dist_limit);
   if (ee_base_norm >= rec_operating_limit){
     RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 100,
       "Out of operational workspace limit!");
@@ -622,8 +622,8 @@ void AdmittanceController::limit_to_workspace() {
   double workspace_fct = dist_limit;
   if (dist_limit > 0.05)
       workspace_fct = 1;
-  RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 100,
-    "Workspace Scaling function: %.4f", workspace_fct);
+  // RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 100,
+  //   "Workspace Scaling function: %.4f", workspace_fct);
 }
 
 

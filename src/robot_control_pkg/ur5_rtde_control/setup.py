@@ -33,6 +33,7 @@ setup(
             'omni_pub_test_node = ur5_rtde_control.omni_pub_test_node:main',
             'rtde_velocity_publisher_node = ur5_rtde_control.rtde_velocity_publisher_node:main',
             'rtde_servol_pose_controller_node = ur5_rtde_control.rtde_servol_pose_controller_node:main',
+            'test_rtde_performance_node = ur5_rtde_control.test_rtde_performance_node:main',
         ],
     },
 )

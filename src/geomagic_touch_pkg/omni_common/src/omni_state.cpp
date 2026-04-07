@@ -194,7 +194,7 @@ public:
         state->lock_pos[1] = omnifeed->position.y;
         state->lock_pos[2] = omnifeed->position.z;
 
-        RCLCPP_INFO(rclcpp::get_logger("omni_haptic_node"), "Received feedback: %f, %f, %f", state->force[0], state->force[1], state->force[2]);
+        // RCLCPP_INFO(rclcpp::get_logger("omni_haptic_node"), "Received feedback: %f, %f, %f", state->force[0], state->force[1], state->force[2]);
     }
 
     void publish_omni_state()

@@ -126,32 +126,32 @@ def generate_launch_description():
         }.items()
     )
 
-    desired_trajectory_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution([
-                FindPackageShare('robot_trajectory_planner'),
-                'launch',
-                'two_point_trajectory.launch.py'
-            ])
-        )
-    )
-
     # desired_trajectory_launch = IncludeLaunchDescription(
     #     PythonLaunchDescriptionSource(
     #         PathJoinSubstitution([
     #             FindPackageShare('robot_trajectory_planner'),
     #             'launch',
-    #             'teleoperation_desired_trajectory.launch.py'
+    #             'two_point_trajectory.launch.py'
     #         ])
-    #     ),
-    #     launch_arguments={
-    #         'topic_master_state': '/phantom/state',
-    #         'topic_ui_control': 'tus_control',
-    #         'topic_desired_pose': topic_desired_pose,
-    #         'topic_desired_twist': topic_desired_twist,
-    #         'topic_desired_accel': topic_desired_accel,
-    #     }.items()
+    #     )
     # )
+
+    desired_trajectory_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('robot_trajectory_planner'),
+                'launch',
+                'teleoperation_desired_trajectory.launch.py'
+            ])
+        ),
+        launch_arguments={
+            'topic_master_state': '/phantom/state',
+            'topic_ui_control': 'tus_control',
+            'topic_desired_pose': topic_desired_pose,
+            'topic_desired_twist': topic_desired_twist,
+            'topic_desired_accel': topic_desired_accel,
+        }.items()
+    )
 
     speedl_bridge_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -267,13 +267,13 @@ def generate_launch_description():
         DeclareLaunchArgument('launch_rviz', default_value='false'),
 
         DeclareLaunchArgument('forcesensorport', default_value='/dev/ttyUSB0'),
-        DeclareLaunchArgument('force_pubrate', default_value='100'),
+        DeclareLaunchArgument('force_pubrate', default_value='200'),
         DeclareLaunchArgument('force_baudrate', default_value='115200'),
         # DeclareLaunchArgument('force_frame_id', default_value='base'),
         DeclareLaunchArgument('force_frame_id', default_value='sensor_frame'),
         DeclareLaunchArgument('force_topic_name', default_value='/external_force_torque_wrench'),
         DeclareLaunchArgument('force_compensated_topic_name', default_value='/external_force_torque_wrench_compensated'),
-        DeclareLaunchArgument('force_auto_zero', default_value='true'),
+        DeclareLaunchArgument('force_auto_zero', default_value='false'),
 
         DeclareLaunchArgument('tcp_pose_topic', default_value='/tcp_pose_broadcaster/pose'),
         DeclareLaunchArgument('ee_pose_topic', default_value='/UR5/ee_pose'),
@@ -298,7 +298,7 @@ def generate_launch_description():
         DeclareLaunchArgument('control_wrench_publish_rate', default_value='125.0'),
         DeclareLaunchArgument('control_force_x', default_value='0.0'),
         DeclareLaunchArgument('control_force_y', default_value='0.0'),
-        DeclareLaunchArgument('control_force_z', default_value='0.0'),
+        DeclareLaunchArgument('control_force_z', default_value='-2.0'),
         DeclareLaunchArgument('control_torque_x', default_value='0.0'),
         DeclareLaunchArgument('control_torque_y', default_value='0.0'),
         DeclareLaunchArgument('control_torque_z', default_value='0.0'),

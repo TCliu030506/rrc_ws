@@ -46,7 +46,7 @@ class URServoLPoseControllerNode(Node):
         self.verify_topic = self.get_parameter('verify_topic').get_parameter_value().string_value
         self.verify_pos_err_warn_m = self.get_parameter('verify_pos_err_warn_m').get_parameter_value().double_value
         self.verify_rot_err_warn_rad = self.get_parameter('verify_rot_err_warn_rad').get_parameter_value().double_value
-        self.dt = 1.0 / 125.0
+        self.dt = 1.0 / 500.0
 
         if len(self.tcp_offset) != 6:
             raise ValueError('tcp_offset must be length 6')

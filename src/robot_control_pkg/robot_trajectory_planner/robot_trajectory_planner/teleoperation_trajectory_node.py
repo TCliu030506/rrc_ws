@@ -332,6 +332,27 @@ class Subscriber(Node):
         self._prev_target_pose = None
         self._prev_twist = [0.0] * 6
 
+    def _refresh_mapping_reference_locked(self):
+        """在持锁状态下，使用当前主从端位姿刷新映射参考。"""
+        self._set_initial_pose_from_realtime()
+
+        # 主端参考位姿优先取当前已接收的数据；若尚未就绪则保持为 None，后续首帧自动建立
+        if self._master_pose is not None:
+            self._ref_master_pose = copy.deepcopy(self._master_pose)
+        else:
+            self._ref_master_pose = None
+
+        if self._master_quat is not None:
+            q_now = _quat_normalize(copy.deepcopy(self._master_quat))
+            self._ref_master_quat = q_now
+            self._last_master_quat = q_now
+        else:
+            self._ref_master_quat = None
+            self._last_master_quat = None
+
+        # 仅用于 rotate-y 模式的累计量，重置后可避免跨次启停累积
+        self._cum_master_y = 0.0
+
     def handle_msg_ui(self, msg: UiControl):
         """根据 UI 发送的控制信号（control_flag）执行不同功能。"""
         # 读取 control_flag 作为控制信号
@@ -349,35 +370,30 @@ class Subscriber(Node):
             # 1：机器人初始化（重置映射参考状态）
             self.get_logger().info('Command 1: 机器人初始化（重置映射参考状态）')
             with self._lock:
-                self._set_initial_pose_from_realtime()
-                self._ref_master_pose = None
-                self._ref_master_quat = None
+                self._refresh_mapping_reference_locked()
             self._publish_desired_trajectory(self._target_pose)
 
         elif signal == 2:
             # 2：机器人作业准备（将期望轨迹重置到初始位姿）
             self.get_logger().info('Command 2: 机器人作业准备（重置期望轨迹初始位姿）')
             with self._lock:
-                self._set_initial_pose_from_realtime()
+                self._refresh_mapping_reference_locked()
             self._publish_desired_trajectory(self._target_pose)
 
         elif signal == 3:
             # 3：开启系统遥操作（开始主从增量映射）
             self.get_logger().info('Command 3: 开启系统遥操作')
             with self._lock:
-                # 重新设定参考位姿，在 _map_master_to_slave_pose 中会使用
-                self._ref_master_pose = None
-                self._ref_master_quat = None
-                # 不清空 _initial_pose，这样可以保留之前的初始从端位姿
+                # 每次开启都以当前主从端位姿作为映射参考零点
+                self._refresh_mapping_reference_locked()
+                self._control_signal = 10
 
         elif signal == 4:
             # 4：关闭系统遥操作（暂停主从端位姿增量控制）
             self.get_logger().info('Command 4: 关闭系统遥操作')
             with self._lock:
-                # 将控制信号保持为 4，发布线程会停止发送目标位姿
-                # 清空参考位姿，下一次重新开启时重新标定零点
-                self._ref_master_pose = None
-                self._ref_master_quat = None
+                # 关闭时也刷新一次参考位姿，确保下一次开启从当前位姿重新标定
+                self._refresh_mapping_reference_locked()
 
         elif signal == 5:
             # 5：退出系统（程序退出，关闭所有线程、发布者、订阅者、节点）
@@ -434,14 +450,6 @@ class Subscriber(Node):
             target_pose: [x, y, z, rx, ry, rz]
                          从端（UR5）目标位姿
         """
-        # 如果收到“开启遥操作”（3），则在第一次进入时设置初始位姿并切到 10 状态
-        if self._control_signal == 3:
-            self.get_logger().info('Control started: Initial pose set.')
-            self._set_initial_pose_from_realtime()
-            self._ref_master_pose = None  # 重置主端参考位姿
-            # 更新为 10 表示“遥操作进行中”
-            self._control_signal = 10
-
         # 确保从端初始位姿存在
         if self._initial_pose is None:
             self._set_initial_pose_from_realtime()
@@ -490,13 +498,6 @@ class Subscriber(Node):
         - 不使用 rotvec 分量差（会在 pi 附近跳变）
         - 使用相邻帧四元数相对旋转提取“绕y轴”的 twist 分量并累计
         """
-        if self._control_signal == 3:
-            self.get_logger().info('Control started: Initial pose set.')
-            self._set_initial_pose_from_realtime()
-            self._control_signal = 10
-            self._last_master_quat = None
-            self._cum_master_y = 0.0
-
         if self._initial_pose is None:
             self._set_initial_pose_from_realtime()
 
@@ -533,13 +534,6 @@ class Subscriber(Node):
         说明：这里的分轴缩放是在 delta 的旋转向量坐标（参考帧）上进行，
         它并不等价于严格的 yaw/pitch/roll 缩放，但比直接对 rx/ry/rz 分量做差更连续。
         """
-        if self._control_signal == 3:
-            self.get_logger().info('Control started: Initial pose set.')
-            self._set_initial_pose_from_realtime()
-            self._ref_master_pose = None
-            self._ref_master_quat = None
-            self._control_signal = 10
-
         if self._initial_pose is None:
             self._set_initial_pose_from_realtime()
 
@@ -604,13 +598,6 @@ class Subscriber(Node):
 
         其中 q_residual 保留不缩放，用于尽量维持原始姿态（避免丢失非纯轴扭转分量）。
         """
-        if self._control_signal == 3:
-            self.get_logger().info('Control started: Initial pose set.')
-            self._set_initial_pose_from_realtime()
-            self._ref_master_pose = None
-            self._ref_master_quat = None
-            self._control_signal = 10
-
         if self._initial_pose is None:
             self._set_initial_pose_from_realtime()
 

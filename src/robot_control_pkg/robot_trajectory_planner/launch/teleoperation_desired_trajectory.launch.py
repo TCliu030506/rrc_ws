@@ -25,6 +25,16 @@ def generate_launch_description():
     tg_baudrate = LaunchConfiguration('tg_baudrate')
     tg_protocol = LaunchConfiguration('tg_protocol')
     tg_device_address = LaunchConfiguration('tg_device_address')
+    feedback_wrench_topic = LaunchConfiguration('feedback_wrench_topic')
+    feedback_topic = LaunchConfiguration('feedback_topic')
+    feedback_position = LaunchConfiguration('feedback_position')
+    feedback_force_scale = LaunchConfiguration('feedback_force_scale')
+    feedback_publish_frequency = LaunchConfiguration('feedback_publish_frequency')
+    feedback_enable_force_filter = LaunchConfiguration('feedback_enable_force_filter')
+    feedback_deadband_force = LaunchConfiguration('feedback_deadband_force')
+    feedback_lowpass_cutoff_hz = LaunchConfiguration('feedback_lowpass_cutoff_hz')
+    feedback_max_force_abs = LaunchConfiguration('feedback_max_force_abs')
+    feedback_max_force_rate = LaunchConfiguration('feedback_max_force_rate')
 
     tg_server_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -123,9 +133,16 @@ def generate_launch_description():
         name='teleoperation_feedback_node',
         parameters=[
             {
-                'wrench_topic': '/external_force_torque_wrench_compensated',
-                'feedback_topic': '/force_feedback',
-                'position': [0.0, 0.0, 0.0],
+                'wrench_topic': feedback_wrench_topic,
+                'feedback_topic': feedback_topic,
+                'position': feedback_position,
+                'force_scale': feedback_force_scale,
+                'publish_frequency': feedback_publish_frequency,
+                'enable_force_filter': feedback_enable_force_filter,
+                'deadband_force': feedback_deadband_force,
+                'lowpass_cutoff_hz': feedback_lowpass_cutoff_hz,
+                'max_force_abs': feedback_max_force_abs,
+                'max_force_rate': feedback_max_force_rate,
             }
         ],
     )
@@ -144,14 +161,25 @@ def generate_launch_description():
         
         DeclareLaunchArgument('tg_button_topic', default_value='/phantom/button'),
         DeclareLaunchArgument('tg_service_name', default_value='set_grip'),
-        DeclareLaunchArgument('tg_port', default_value='/dev/ttyACM0'),
+        DeclareLaunchArgument('tg_port', default_value='/dev/ttyACM1'),
         DeclareLaunchArgument('tg_baudrate', default_value='1000000'),
         DeclareLaunchArgument('tg_protocol', default_value='modbus_rtu'),
         DeclareLaunchArgument('tg_device_address', default_value='1'),
 
+        DeclareLaunchArgument('feedback_wrench_topic', default_value='/external_force_torque_wrench_compensated'),
+        DeclareLaunchArgument('feedback_topic', default_value='/phantom/force_feedback'),
+        DeclareLaunchArgument('feedback_position', default_value='[0.0, 0.0, 0.0]'),
+        DeclareLaunchArgument('feedback_force_scale', default_value='0.05'),
+        DeclareLaunchArgument('feedback_publish_frequency', default_value='1000.0'),
+        DeclareLaunchArgument('feedback_enable_force_filter', default_value='true'),
+        DeclareLaunchArgument('feedback_deadband_force', default_value='0.001'),
+        DeclareLaunchArgument('feedback_lowpass_cutoff_hz', default_value='120.0'),
+        DeclareLaunchArgument('feedback_max_force_abs', default_value='20.0'),
+        DeclareLaunchArgument('feedback_max_force_rate', default_value='400.0'),
+
         tg_server_launch,
-        img_capture_node,
-        usb_camera_node,
+        # img_capture_node,
+        # usb_camera_node,
         teleop_master_node,
         teleop_trajectory_node,
         tg_teleoperation_node,
