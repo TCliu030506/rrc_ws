@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="asm_description">
+  <link
+    name="world" />
+  <joint
+    name="world_to_base_link"
+    type="fixed">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="world" />
+    <child
+      link="base_link" />
+  </joint>
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0.034581 -0.00043078 0.023172"
+        rpy="0 0 0" />
+      <mass
+        value="0.16294" />
+      <inertia
+        ixx="8.2272E-05"
+        ixy="1.0781E-07"
+        ixz="4.4428E-09"
+        iyy="0.00010387"
+        iyz="-6.2567E-08"
+        izz="0.00014474" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://asm_description/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="base_link_material">
+        <color
+          rgba="0.29804 0.29804 0.29804 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://asm_description/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="tool_link1">
+    <inertial>
+      <origin
+        xyz="-0.00057962 -0.00051221 -0.0055231"
+        rpy="0 0 0" />
+      <mass
+        value="0.099171" />
+      <inertia
+        ixx="6.8128E-05"
+        ixy="-8.4374E-08"
+        ixz="3.0296E-14"
+        iyy="5.472E-05"
+        iyz="4.5685E-12"
+        izz="3.1648E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://asm_description/meshes/tool_link1.STL" />
+      </geometry>
+      <material
+        name="tool_link1_material">
+        <color
+          rgba="0.43137 0.45098 0.43137 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://asm_description/meshes/tool_link1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="tool_joint1"
+    type="revolute">
+    <origin
+      xyz="0 0 0.098"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="tool_link1" />
+    <axis
+      xyz="0 -1 0" />
+    <limit
+      lower="-0.1500"
+      upper="0.1500"
+      effort="20"
+      velocity="0.5" />
+    <dynamics
+      damping="10"
+      friction="10" />
+  </joint>
+  <link
+    name="tool_link2">
+    <inertial>
+      <origin
+        xyz="-0.0004339 0.00018809 -0.002683"
+        rpy="0 0 0" />
+      <mass
+        value="0.31013" />
+      <inertia
+        ixx="0.00075589"
+        ixy="4.0173E-07"
+        ixz="-5.4911E-08"
+        iyy="0.00023419"
+        iyz="1.1979E-05"
+        izz="0.0008144" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://asm_description/meshes/tool_link2.STL" />
+      </geometry>
+      <material
+        name="tool_link2_material">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://asm_description/meshes/tool_link2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="tool_joint2"
+    type="revolute">
+    <origin
+      xyz="0 0 0.0495"
+      rpy="0 0 0" />
+    <parent
+      link="tool_link1" />
+    <child
+      link="tool_link2" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-0.3000"
+      upper="0.3000"
+      effort="20"
+      velocity="0.5" />
+    <dynamics
+      damping="10"
+      friction="10" />
+  </joint>
+</robot>
