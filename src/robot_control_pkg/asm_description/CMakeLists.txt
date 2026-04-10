@@ -38,7 +38,12 @@ endif()
 
 
 install(DIRECTORY
-  meshes urdf textures config launch rviz
+  meshes urdf textures config launch rviz worlds
   DESTINATION share/${PROJECT_NAME}/
+)
+
+install(PROGRAMS
+  scripts/arm_keyboard_teleop.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 ament_package()
