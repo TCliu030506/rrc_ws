@@ -208,8 +208,8 @@ class Subscriber(Node):
         # self._pos_scale = [2.0, 2.0, 2.0]      # X、Y、Z 比例
         # self._rot_scale = [0.6, 0.6, 0.6]      # RX、RY、RZ 比例
         # 仅保留y轴
-        self._pos_scale = [1.5, 1.5, 1.5]      # X、Y、Z 比例
-        self._rot_scale = [0.6, 0.6, 0.6]      # RX、RY、RZ 比例
+        self._pos_scale = [0.0, 1.5, 0.0]      # X、Y、Z 比例
+        self._rot_scale = [0.0, 0.0, 0.0]      # RX、RY、RZ 比例
 
         # 作业准备位姿（UR5 初始位姿），支持参数配置
         self.declare_parameter(
@@ -271,8 +271,13 @@ class Subscriber(Node):
         # 读取 control_flag 作为控制信号
         signal = int(msg.control_flag)
         with self._lock:
-            self._control_signal = signal
-        self.get_logger().info(f'Received Control Signal: {self._control_signal}')
+            # 6/7 仅用于切换映射比例，不覆盖遥操作运行态（3/10）
+            if signal not in (6, 7):
+                self._control_signal = signal
+            current_control = self._control_signal
+        self.get_logger().info(
+            f'Received Control Signal: {signal}, current control state: {current_control}'
+        )
 
         # 分发到具体功能
         self._handle_control_signal(signal)
@@ -326,7 +331,28 @@ class Subscriber(Node):
             self._running = False
             # 调用 rclpy.shutdown，使 spin 退出
             rclpy.shutdown()
-
+        
+        elif signal == 6:
+            # 6：调整映射比例到平移：仅映射y轴
+            self.get_logger().info('Command 6: 调整映射比例到平移：仅映射y轴')
+            with self._lock:
+                self._pos_scale = [0.0, 1.5, 0.0]
+                self._rot_scale = [0.0, 0.0, 0.0]
+                # 清空参考位姿，下一次重新开启时重新标定零点
+                self._ref_master_pose = None
+                self._ref_master_quat = None
+                self._control_signal = 3  # 切回遥操作运行态（如果之前在 4/10 状态）
+        
+        elif signal == 7:
+            # 7：调整映射比例到旋转：仅映射绕y轴旋转
+            self.get_logger().info('Command 7: 调整映射比例到旋转：仅映射绕y轴旋转')
+            with self._lock:
+                self._pos_scale = [0.0, 0.0, 0.0]
+                self._rot_scale = [0.0, 0.5, 0.0]
+                # 清空参考位姿，下一次重新开启时重新标定零点
+                self._ref_master_pose = None
+                self._ref_master_quat = None
+                self._control_signal = 3  # 切回遥操作运行态（如果之前在 4/10 状态）
         else:
             # 其他控制信号（包括内部使用的 10）不在此处单独处理
             self.get_logger().debug(f'Unhandled control signal in dispatcher: {signal}')

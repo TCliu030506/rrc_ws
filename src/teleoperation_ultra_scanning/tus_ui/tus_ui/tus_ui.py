@@ -39,6 +39,11 @@ class CustomQApplication(QApplication):
 class FullScreenWidget(QWidget):
     """自定义窗口，重写 keyPressEvent，与 C++ 逻辑一致"""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.on_z_pressed = None
+        self.on_x_pressed = None
+
     def keyPressEvent(self, event):
         # 仅保留 Esc/F1 全屏切换
         if event.key() == Qt.Key_Escape:
@@ -47,6 +52,12 @@ class FullScreenWidget(QWidget):
         elif event.key() == Qt.Key_F1:
             if not self.isFullScreen():
                 self.showFullScreen()
+        elif event.key() == Qt.Key_Z:
+            if callable(self.on_z_pressed):
+                self.on_z_pressed()
+        elif event.key() == Qt.Key_X:
+            if callable(self.on_x_pressed):
+                self.on_x_pressed()
         else:
             super().keyPressEvent(event)
 
@@ -85,6 +96,8 @@ class UINode(Node):
         # ---------------- UI 构建 ----------------
         self.window = FullScreenWidget()
         self.window.setWindowTitle("Teleopration UI")
+        self.window.on_z_pressed = self._publish_control_flag_6
+        self.window.on_x_pressed = self._publish_control_flag_7
 
         # logo
         self.logo_label = None
@@ -275,6 +288,16 @@ class UINode(Node):
         self.get_logger().info(
             f"UI published control command: {msg.control_flag}"
         )
+
+    def _publish_control_flag_6(self):
+        msg = UiControl()
+        msg.control_flag = 6
+        self.on_control_clicked(msg)
+
+    def _publish_control_flag_7(self):
+        msg = UiControl()
+        msg.control_flag = 7
+        self.on_control_clicked(msg)
 
     # ---------------- ROS 回调 ----------------
     def video_listener_callback(self, msg: Image):
