@@ -7,6 +7,12 @@
   <maintainer email="14011673+liu-tiancheng0506@user.noreply.gitee.com">liutiancheng</maintainer>
   <license>TODO: License declaration</license>
 
+  <depend>rclpy</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>omni_msgs</depend>
+  <depend>ui_control_msg</depend>
+
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>

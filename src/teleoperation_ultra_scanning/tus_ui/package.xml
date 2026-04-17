@@ -21,6 +21,9 @@
   <depend>sensor_msgs</depend>
   <depend>sigema7_msg</depend>
   <depend>ui_control_msg</depend>
+  <depend>usb_cam</depend>
+  <depend>omni_common</depend>
+  <depend>ur5_rtde_control</depend>
   <depend>pyzmq</depend>
 
   <build_depend>launch</build_depend>

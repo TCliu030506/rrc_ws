@@ -29,6 +29,8 @@ setup(
             'ur5_rtde_control = ur5_rtde_control.ur5_rtde_control:main',
             'teleoperation_control = ur5_rtde_control.teleoperation_control:main',
             'teleoperation_control_ui = ur5_rtde_control.teleoperation_control_ui:main',
+            'teleoperation_control_ui_pub = ur5_rtde_control.teleoperation_control_ui_pub:main',
+            'teleoperation_control_ui_executor = ur5_rtde_control.teleoperation_control_ui_executor:main',
             'my_demo = ur5_rtde_control.my_demo:main',
             'omni_pub_test_node = ur5_rtde_control.omni_pub_test_node:main',
             'rtde_velocity_publisher_node = ur5_rtde_control.rtde_velocity_publisher_node:main',
