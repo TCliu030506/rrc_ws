@@ -44,6 +44,7 @@ install(DIRECTORY
 
 install(PROGRAMS
   scripts/arm_keyboard_teleop.py
+  scripts/ur5_with_asm_keyboard_teleop.py
   DESTINATION lib/${PROJECT_NAME}
 )
 ament_package()
