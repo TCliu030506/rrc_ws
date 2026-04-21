@@ -56,9 +56,9 @@ class Ur5WithAsmKeyboardTeleop(Node):
         self._ur_joint_limits = [(-math.pi, math.pi)] * 6
         self._asm_joint_limits = [(-0.15, 0.15), (-0.30, 0.30)]
 
-        self._ur_step = 0.03
-        self._asm_step = 0.01
-        self._goal_time_sec = 0.8
+        self._ur_step = 0.01
+        self._asm_step = 0.005
+        self._goal_time_sec = 0.2
 
         # 本节点维护的目标关节值（启动后从 /joint_states 初始化一次）。
         self._ur_targets = [0.0] * len(self._ur_joint_names)
@@ -254,7 +254,7 @@ def main(args=None) -> None:
         while running and rclpy.ok():
             # 持续处理回调，确保 joint_states 与 action 响应正常更新。
             rclpy.spin_once(node, timeout_sec=0.0)
-            key = get_key(0.1)
+            key = get_key(0.01)
 
             if key == 'q':
                 node.update_ur_joint(0, +node._ur_step)

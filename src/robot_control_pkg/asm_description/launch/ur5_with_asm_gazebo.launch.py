@@ -43,6 +43,15 @@ def generate_launch_description():
             default_value='true',
             description='Start gazebo with GUI?',
         ),
+        DeclareLaunchArgument(
+            'world',
+            default_value=PathJoinSubstitution([
+                FindPackageShare('asm_description'),
+                'worlds',
+                'myworld.world',
+            ]),
+            description='Gazebo world file to load.',
+        ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 PathJoinSubstitution([
@@ -59,6 +68,7 @@ def generate_launch_description():
                 'description_file': LaunchConfiguration('description_file'),
                 'launch_rviz': LaunchConfiguration('launch_rviz'),
                 'gazebo_gui': LaunchConfiguration('gazebo_gui'),
+                'world': LaunchConfiguration('world'),
             }.items(),
         ),
         Node(
