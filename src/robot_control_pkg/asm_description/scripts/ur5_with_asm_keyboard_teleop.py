@@ -11,6 +11,7 @@ import rclpy
 from control_msgs.action import FollowJointTrajectory
 from rclpy.action import ActionClient
 from rclpy.node import Node
+from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 
@@ -33,7 +34,7 @@ space: send home (all joints -> 0.0)
 p    : print this help
 x    : quit
 
-Each keypress sends a trajectory goal (0.2 s) to the relevant controller.
+Each keypress sends a trajectory goal (0.8 s) to the relevant controller.
 """
 
 
@@ -51,16 +52,19 @@ class Ur5WithAsmKeyboardTeleop(Node):
         ]
         self._asm_joint_names: List[str] = ['asm_tool_joint1', 'asm_tool_joint2']
 
-        # Conservative limits for interactive testing.
+        # 交互测试时使用的保守关节限位。
         self._ur_joint_limits = [(-math.pi, math.pi)] * 6
         self._asm_joint_limits = [(-0.15, 0.15), (-0.30, 0.30)]
 
-        self._ur_step = 0.05
-        self._asm_step = 0.02
-        self._goal_time_sec = 0.2
+        self._ur_step = 0.03
+        self._asm_step = 0.01
+        self._goal_time_sec = 0.8
 
+        # 本节点维护的目标关节值（启动后从 /joint_states 初始化一次）。
         self._ur_targets = [0.0] * len(self._ur_joint_names)
         self._asm_targets = [0.0] * len(self._asm_joint_names)
+        self._latest_joint_positions = {}
+        self._targets_initialized = False
 
         self._ur_action_candidates = [
             '/joint_trajectory_controller/follow_joint_trajectory',
@@ -79,9 +83,28 @@ class Ur5WithAsmKeyboardTeleop(Node):
             '/asm_arm_controller/follow_joint_trajectory',
         )
 
+        self.create_subscription(JointState, '/joint_states', self._joint_states_cb, 10)
+
+    def _joint_states_cb(self, msg: JointState) -> None:
+        # 以“关节名 -> 关节位置”缓存最新状态，便于稳健检索。
+        for name, position in zip(msg.name, msg.position):
+            self._latest_joint_positions[name] = position
+
+        # 仅初始化一次：以当前姿态作为起点，避免首条指令出现大跳变。
+        if not self._targets_initialized:
+            all_ur_ready = all(name in self._latest_joint_positions for name in self._ur_joint_names)
+            all_asm_ready = all(name in self._latest_joint_positions for name in self._asm_joint_names)
+            if all_ur_ready and all_asm_ready:
+                # 把当前机器人姿态作为首个目标，避免“直接跳到零位”。
+                self._ur_targets = [self._latest_joint_positions[name] for name in self._ur_joint_names]
+                self._asm_targets = [self._latest_joint_positions[name] for name in self._asm_joint_names]
+                self._targets_initialized = True
+                self.get_logger().info('Initialized targets from /joint_states.')
+
     def wait_for_controllers(self) -> bool:
         self.get_logger().info('Waiting for UR5 controller action...')
         ur_ok = False
+        # 按优先级依次尝试 UR 轨迹 Action 服务，命中第一个可用项即采用。
         for ur_action in self._ur_action_candidates:
             candidate_client = ActionClient(self, FollowJointTrajectory, ur_action)
             if candidate_client.wait_for_server(timeout_sec=4.0):
@@ -110,6 +133,24 @@ class Ur5WithAsmKeyboardTeleop(Node):
         self.get_logger().info('Both action servers are ready.')
         return True
 
+    def wait_for_joint_states(self, timeout_sec: float = 5.0) -> bool:
+        # 启动阶段短暂等待，直到拿到一份完整的关节快照。
+        start = self.get_clock().now()
+        while rclpy.ok() and not self._targets_initialized:
+            rclpy.spin_once(self, timeout_sec=0.1)
+            elapsed = (self.get_clock().now() - start).nanoseconds / 1e9
+            if elapsed > timeout_sec:
+                break
+
+        if not self._targets_initialized:
+            self.get_logger().warn(
+                'Failed to initialize targets from /joint_states in time. '
+                'Keeping zero initialization may cause large first movement.'
+            )
+            return False
+
+        return True
+
     @staticmethod
     def _clamp(value: float, low: float, high: float) -> float:
         return max(low, min(high, value))
@@ -121,6 +162,7 @@ class Ur5WithAsmKeyboardTeleop(Node):
         targets: List[float],
         controller_name: str,
     ) -> None:
+        # 构造单点轨迹：在 goal_time_sec 内将关节移动到目标值。
         goal_msg = FollowJointTrajectory.Goal()
         goal_msg.trajectory.joint_names = joint_names
 
@@ -133,6 +175,7 @@ class Ur5WithAsmKeyboardTeleop(Node):
 
         goal_msg.trajectory.points = [point]
 
+        # 异步发送目标；在回调中记录是否被控制器接受。
         send_future = client.send_goal_async(goal_msg)
         send_future.add_done_callback(
             lambda future: self._goal_response_callback(future, controller_name, joint_names, targets)
@@ -200,6 +243,8 @@ def main(args=None) -> None:
         rclpy.shutdown()
         return
 
+    node.wait_for_joint_states(timeout_sec=5.0)
+
     print(HELP_TEXT)
 
     old_settings = termios.tcgetattr(sys.stdin)
@@ -207,6 +252,7 @@ def main(args=None) -> None:
         tty.setcbreak(sys.stdin.fileno())
         running = True
         while running and rclpy.ok():
+            # 持续处理回调，确保 joint_states 与 action 响应正常更新。
             rclpy.spin_once(node, timeout_sec=0.0)
             key = get_key(0.1)
 
