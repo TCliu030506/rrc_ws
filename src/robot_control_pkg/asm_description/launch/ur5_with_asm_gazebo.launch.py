@@ -48,7 +48,7 @@ def generate_launch_description():
             default_value=PathJoinSubstitution([
                 FindPackageShare('asm_description'),
                 'worlds',
-                'myworld.world',
+                'empty_world.model',
             ]),
             description='Gazebo world file to load.',
         ),

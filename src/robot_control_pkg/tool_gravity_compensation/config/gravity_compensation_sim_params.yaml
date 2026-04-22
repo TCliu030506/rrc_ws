@@ -1,0 +1,9 @@
+gravity_compensation_node:
+  ros__parameters:
+    wrench_in_topic: /wrench
+    wrench_out_topic: /wrench_compensated
+    gravity_wrench_topic: /wrench_gravity_model
+    world_frame: world
+    sensor_frame: asm_force_sensor_link
+    gravity_norm: 9.81
+    calibration_file: /home/liutiancheng/Lab_WS/rrc_ws/src/robot_control_pkg/tool_gravity_compensation/config/tool_gravity_calibration_sim.json

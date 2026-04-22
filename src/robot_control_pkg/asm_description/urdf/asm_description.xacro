@@ -1,189 +1,193 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com)
      Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
      For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
-<robot
-  name="asm_description" xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <link
-    name="world" />
-  <joint
-    name="world_to_base_link"
-    type="fixed">
-    <origin
-      xyz="0 0 0"
-      rpy="0 0 0" />
-    <parent
-      link="world" />
-    <child
-      link="base_link" />
+<robot name="asm_description" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <link name="world"/>
+  <joint name="world_to_base_link" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="world"/>
+    <child link="base_link"/>
   </joint>
-  <link
-    name="base_link">
-    <inertial>
-      <origin
-        xyz="0.034581 -0.00043078 0.023172"
-        rpy="0 0 0" />
-      <mass
-        value="0.16294" />
-      <inertia
-        ixx="8.2272E-05"
-        ixy="1.0781E-07"
-        ixz="4.4428E-09"
-        iyy="0.00010387"
-        iyz="-6.2567E-08"
-        izz="0.00014474" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <!-- <mesh
-          filename="package://asm_description/meshes/base_link.STL" /> -->
-        <mesh filename="file://$(find asm_description)/meshes/base_link.STL" />
 
-      </geometry>
-      <material
-        name="base_link_material">
-        <color
-          rgba="0.29804 0.29804 0.29804 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <!-- <mesh
-          filename="package://asm_description/meshes/base_link.STL" /> -->
-        <mesh filename="file://$(find asm_description)/meshes/base_link.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <link
-    name="tool_link1">
+  <link name="base_link">
     <inertial>
-      <origin
-        xyz="-0.00057962 -0.00051221 -0.0055231"
-        rpy="0 0 0" />
-      <mass
-        value="0.099171" />
-      <inertia
-        ixx="6.8128E-05"
-        ixy="-8.4374E-08"
-        ixz="3.0296E-14"
-        iyy="5.472E-05"
-        iyz="4.5685E-12"
-        izz="3.1648E-05" />
+      <origin xyz="0.043666 6.6613E-16 0.0025" rpy="0 0 0"/>
+      <mass value="0.043002"/>
+      <inertia ixx="1.4601E-05" ixy="-1.0055E-18" ixz="-2.5272E-21" iyy="6.817E-05" iyz="1.4737E-22" izz="8.2592E-05"/>
     </inertial>
     <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <!-- <mesh
-          filename="package://asm_description/meshes/tool_link1.STL" /> -->
-        <mesh filename="file://$(find asm_description)/meshes/tool_link1.STL" />
+        <mesh filename="file://$(find asm_description)/meshes/base_link.STL"/>
       </geometry>
-      <material
-        name="tool_link1_material">
-        <color
-          rgba="0.43137 0.45098 0.43137 1" />
+      <material name="base_link_material">
+        <color rgba="1 1 1 1"/>
       </material>
     </visual>
     <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <!-- <mesh
-          filename="package://asm_description/meshes/tool_link1.STL" /> -->
-        <mesh filename="file://$(find asm_description)/meshes/tool_link1.STL" />
+        <mesh filename="file://$(find asm_description)/meshes/base_link.STL"/>
       </geometry>
     </collision>
   </link>
-  <joint
-    name="tool_joint1"
-    type="revolute">
-    <origin
-      xyz="0 0 0.098"
-      rpy="0 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="tool_link1" />
-    <axis
-      xyz="0 -1 0" />
-    <limit
-      lower="-0.1500"
-      upper="0.1500"
-      effort="20"
-      velocity="0.5" />
-    <dynamics
-      damping="10"
-      friction="10" />
+
+  <link name="force_sensor_link">
+    <inertial>
+      <origin xyz="-0.00034904 0.00034904 -6.9694E-05" rpy="0 0 0"/>
+      <mass value="0.01707"/>
+      <inertia ixx="1.9259E-06" ixy="9.9778E-08" ixz="-1.7458E-08" iyy="1.9259E-06" iyz="1.7458E-08" izz="2.8862E-06"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find asm_description)/meshes/force_sensor_link.STL"/>
+      </geometry>
+      <material name="force_sensor_material">
+        <color rgba="0.79216 0.81961 0.93333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find asm_description)/meshes/force_sensor_link.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="force_sensor_joint" type="fixed">
+    <origin xyz="0 0 0.0145" rpy="0 0 -3.1416"/>
+    <parent link="base_link"/>
+    <child link="force_sensor_link"/>
+    <axis xyz="0 0 0"/>
+    <limit lower="-3.1416" upper="3.1416" effort="20" velocity="0.5"/>
+    <dynamics damping="10" friction="10"/>
   </joint>
-  <link
-    name="tool_link2">
+
+  <link name="tool_base_link">
     <inertial>
-      <origin
-        xyz="-0.0004339 0.00018809 -0.002683"
-        rpy="0 0 0" />
-      <mass
-        value="0.31013" />
-      <inertia
-        ixx="0.00075589"
-        ixy="4.0173E-07"
-        ixz="-5.4911E-08"
-        iyy="0.00023419"
-        iyz="1.1979E-05"
-        izz="0.0008144" />
+      <origin xyz="3.1503E-15 0 0.01886" rpy="0 0 0"/>
+      <mass value="0.065358"/>
+      <inertia ixx="4.3832E-05" ixy="-3.1683E-20" ixz="-1.6598E-21" iyy="3.1672E-05" iyz="2.7529E-21" izz="3.6046E-05"/>
     </inertial>
     <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <!-- <mesh
-          filename="package://asm_description/meshes/tool_link2.STL" /> -->
-        <mesh filename="file://$(find asm_description)/meshes/tool_link2.STL" />
+        <mesh filename="file://$(find asm_description)/meshes/tool_base_link.STL"/>
       </geometry>
-      <material
-        name="tool_link2_material">
-        <color
-          rgba="0.79216 0.81961 0.93333 1" />
+      <material name="tool_base_material">
+        <color rgba="0.72216 0.71961 0.83333 1"/>
       </material>
     </visual>
     <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <!-- <mesh
-          filename="package://asm_description/meshes/tool_link2.STL" /> -->
-        <mesh filename="file://$(find asm_description)/meshes/tool_link2.STL" />
+        <mesh filename="file://$(find asm_description)/meshes/tool_base_link.STL"/>
       </geometry>
     </collision>
   </link>
-  <joint
-    name="tool_joint2"
-    type="revolute">
-    <origin
-      xyz="0 0 0.0495"
-      rpy="0 0 0" />
-    <parent
-      link="tool_link1" />
-    <child
-      link="tool_link2" />
-    <axis
-      xyz="1 0 0" />
-    <limit
-      lower="-0.3000"
-      upper="0.3000"
-      effort="20"
-      velocity="0.5" />
-    <dynamics
-      damping="10"
-      friction="10" />
+
+  <joint name="tool_base_joint" type="fixed">
+    <origin xyz="0 0 0.0095" rpy="0 0 3.1416"/>
+    <parent link="force_sensor_link"/>
+    <child link="tool_base_link"/>
+    <axis xyz="0 0 0"/>
+    <limit lower="-3.1416" upper="3.1416" effort="20" velocity="0.5"/>
+    <dynamics damping="10" friction="10"/>
+  </joint>
+
+  <link name="tool_link1">
+    <inertial>
+      <origin xyz="-0.00057962 -0.00051221 -0.0055231" rpy="0 0 0"/>
+      <mass value="0.099171"/>
+      <inertia ixx="6.8128E-05" ixy="-8.4374E-08" ixz="3.0296E-14" iyy="5.472E-05" iyz="4.5685E-12" izz="3.1648E-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find asm_description)/meshes/tool_link1.STL"/>
+      </geometry>
+      <material name="tool_link1_material">
+        <color rgba="0.43137 0.45098 0.43137 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find asm_description)/meshes/tool_link1.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="tool_joint1" type="revolute">
+    <origin xyz="0 0 0.074" rpy="0 0 0"/>
+    <parent link="tool_base_link"/>
+    <child link="tool_link1"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-0.1500" upper="0.1500" effort="20" velocity="0.5"/>
+    <dynamics damping="10" friction="10"/>
+  </joint>
+
+  <link name="tool_link2">
+    <inertial>
+      <origin xyz="-0.00023235 0.0001851 -0.0026657" rpy="0 0 0"/>
+      <mass value="0.31471"/>
+      <inertia ixx="0.00076298" ixy="4.0202E-07" ixz="-5.4052E-08" iyy="0.00023426" iyz="1.1979E-05" izz="0.00082144"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find asm_description)/meshes/tool_link2.STL"/>
+      </geometry>
+      <material name="tool_link2_material">
+        <color rgba="0.79216 0.81961 0.93333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find asm_description)/meshes/tool_link2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="tool_joint2" type="revolute">
+    <origin xyz="0 0 0.0495" rpy="0 0 0"/>
+    <parent link="tool_link1"/>
+    <child link="tool_link2"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.3000" upper="0.3000" effort="20" velocity="0.5"/>
+    <dynamics damping="10" friction="10"/>
+  </joint>
+
+  <link name="camera_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0"/>
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find asm_description)/meshes/camera_link.STL"/>
+      </geometry>
+      <material name="camera_material">
+        <color rgba="0.9 0.9 0.9 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find asm_description)/meshes/camera_link.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="camera_joint" type="fixed">
+    <origin xyz="0.1 -0.0011863 0.005" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+    <axis xyz="0 0 0"/>
   </joint>
 </robot>
