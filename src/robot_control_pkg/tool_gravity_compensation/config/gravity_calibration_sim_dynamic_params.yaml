@@ -1,0 +1,25 @@
+sim_dynamic_gravity_calibration_node:
+  ros__parameters:
+    joint_states_topic: /joint_states
+    wrench_topic: /wrench
+    trajectory_action: /joint_trajectory_controller/follow_joint_trajectory
+    world_frame: world
+    sensor_frame: asm_force_sensor_link
+    gravity_norm: 9.81
+    sample_period_sec: 0.05
+    samples_per_pose: 10
+    move_time_sec: 1.2
+    settle_time_sec: 0.8
+    wrist_delta_rad: 3.14
+    tool_joint_delta_rad: 0.15
+    wrist_pose_samples: 5
+    tool_pose_samples: 5
+    link_frames:
+      - asm_force_sensor_link
+      - asm_tool_base_link
+      - asm_tool_link1
+      - asm_tool_link2
+    tool_joint_names:
+      - asm_tool_joint1
+      - asm_tool_joint2
+    output_file: /home/liutiancheng/Lab_WS/rrc_ws/src/robot_control_pkg/tool_gravity_compensation/config/tool_gravity_calibration_sim_dynamic.json
