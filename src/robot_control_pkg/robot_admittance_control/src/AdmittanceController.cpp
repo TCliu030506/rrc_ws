@@ -315,7 +315,7 @@ void AdmittanceController::compute_admittance()
 
   apply_pose_smoothing(raw_arm_command_position, raw_arm_command_orientation);
 
-  // 外环跟踪：v_track = Kp*e + Ki*int(e)
+  // 外环速度跟踪：v_track = Kp*e + Ki*int(e)
   Vector6d tracking_pose_error = Vector6d::Zero();
   tracking_pose_error.segment(0, 3) = desired_position_ - arm_real_position_;
   Eigen::Quaterniond q_err = desired_orientation_ * arm_real_orientation_.conjugate();
@@ -573,8 +573,8 @@ void AdmittanceController::limit_to_workspace() {
   double norm_vel_des = (arm_desired_twist_.segment(0, 3)).norm(); // 线速度模
   // 限制最大速度
   if (norm_vel_des > arm_max_vel_) {
-    RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
-      "Admittance generate fast arm movements! velocity norm: %.4f", norm_vel_des);
+    // RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+    //   "Admittance generate fast arm movements! velocity norm: %.4f", norm_vel_des);
     arm_desired_twist_.segment(0, 3) *= (arm_max_vel_ / norm_vel_des);
   }
   // 速度过小直接归零，抑制抖动（用绝对值）

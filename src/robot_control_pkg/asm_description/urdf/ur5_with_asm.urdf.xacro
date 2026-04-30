@@ -42,7 +42,7 @@
   <xacro:arg name="sim_gazebo" default="false" />
   <xacro:arg name="sim_ignition" default="false" />
   <xacro:arg name="simulation_controllers" default="" />
-  <xacro:arg name="initial_positions_file" default="$(find ur_description)/config/initial_positions.yaml" />
+  <xacro:arg name="initial_positions_file" default="$(find asm_description)/config/my_initial_positions.yaml" />
 
   <xacro:arg name="asm_prefix" default="asm_" />
   <xacro:arg name="asm_parent_link" default="$(arg tf_prefix)tool0" />

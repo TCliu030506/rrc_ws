@@ -25,6 +25,12 @@ def generate_launch_description():
                 'world': LaunchConfiguration('world'),
                 'gazebo_gui': LaunchConfiguration('gazebo_gui'),
                 'launch_rviz': LaunchConfiguration('launch_rviz'),
+                # 添加初始位置文件参数
+                'initial_positions_file': PathJoinSubstitution([
+                    FindPackageShare('asm_description'),
+                    'config',
+                    'my_initial_positions.yaml',
+                ]),
             }.items(),
         ),
 

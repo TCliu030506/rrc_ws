@@ -28,7 +28,6 @@ setup(
     entry_points={
         'console_scripts': [
             'ee_state_from_tf_node = ultra_scanning_sim.ee_state_from_tf_node:main',
-            'admittance_pose_to_ik_trajectory_node = ultra_scanning_sim.admittance_pose_to_ik_trajectory_node:main',
         ],
     },
 )

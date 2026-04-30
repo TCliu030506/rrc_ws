@@ -38,7 +38,7 @@ class EeStateFromTfNode(Node):
     def __init__(self) -> None:
         super().__init__('ee_state_from_tf_node')
 
-        self.declare_parameter('source_frame', 'base')
+        self.declare_parameter('source_frame', 'base_link')
         self.declare_parameter('target_frame', 'asm_force_sensor_link')
         self.declare_parameter('output_pose_topic', '/gazebo/ee_pose')
         self.declare_parameter('output_twist_topic', '/gazebo/ee_twist')

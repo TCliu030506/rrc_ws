@@ -13,10 +13,10 @@ admittance_controller_node:
     enable_wrench_filter: true
     wrench_filter_tau: 0.015
 
-    base_frame: "base"
-    arm_base_frame: "base"
+    base_frame: "base_link"
+    arm_base_frame: "base_link"
     ft_sensor_frame: "sensor_frame"
-    control_wrench_frame: "base"
+    control_wrench_frame: "base_link"
 
     # 遥操作夹爪参数设置
     # 6x6 质量矩阵（行优先展平）

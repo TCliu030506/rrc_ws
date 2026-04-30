@@ -49,7 +49,7 @@ def generate_launch_description():
             package='robot_admittance_control',
             executable='admittance_controller_node',
             name='admittance_controller_node',
-            output='screen',
+            output='log',
             parameters=[
                 params_file,
                 {
