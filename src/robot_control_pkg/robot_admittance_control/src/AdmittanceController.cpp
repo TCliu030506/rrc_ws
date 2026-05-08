@@ -470,6 +470,7 @@ void AdmittanceController::twist_arm_callback(
                   msg->angular.z;
 }
 
+// 期望轨迹回调，更新期望位姿
 void AdmittanceController::desired_pose_callback(
   const geometry_msgs::msg::Pose::SharedPtr msg) {
   desired_position_ << msg->position.x, msg->position.y, msg->position.z;
@@ -480,6 +481,7 @@ void AdmittanceController::desired_pose_callback(
   desired_pose_ready_ = true;
 }
 
+// 期望轨迹回调，更新期望速度
 void AdmittanceController::desired_twist_callback(
   const geometry_msgs::msg::Twist::SharedPtr msg) {
   desired_twist_ << msg->linear.x, msg->linear.y,
@@ -488,6 +490,7 @@ void AdmittanceController::desired_twist_callback(
   desired_twist_ready_ = true;
 }
 
+// 期望轨迹回调，更新期望加速度
 void AdmittanceController::desired_accel_callback(
   const geometry_msgs::msg::Accel::SharedPtr msg) {
   desired_accel_ << msg->linear.x, msg->linear.y,

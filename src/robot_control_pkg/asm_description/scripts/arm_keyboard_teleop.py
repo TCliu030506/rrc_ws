@@ -30,7 +30,7 @@ class ArmKeyboardTeleop(Node):
         super().__init__('arm_keyboard_teleop')
 
         self._joint_names: List[str] = ['tool_joint1', 'tool_joint2']
-        self._joint_limits = [(-0.15, 0.15), (-0.30, 0.30)]
+        self._joint_limits = [(-0.130, 0.130), (-0.270, 0.270)]
         self._step = 0.02
         self._goal_time_sec = 0.01
         self._target_positions = [0.0, 0.0]

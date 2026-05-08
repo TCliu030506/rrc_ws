@@ -17,7 +17,7 @@ def generate_launch_description():
         DeclareLaunchArgument('scan_center', default_value='[0.40, 0.0, 0.65]'),
         DeclareLaunchArgument('scan_length_x', default_value='0.20'),
         DeclareLaunchArgument('scan_width_y', default_value='0.20'),
-        DeclareLaunchArgument('scan_speed', default_value='0.005'),
+        DeclareLaunchArgument('scan_speed', default_value='0.002'),
         DeclareLaunchArgument('line_spacing', default_value='0.01'),
         DeclareLaunchArgument('line_turnaround_pause', default_value='0.15'),
         DeclareLaunchArgument('orientation_xyzw', default_value='[0.0, 0.7071, 0.0, 0.7071]'),

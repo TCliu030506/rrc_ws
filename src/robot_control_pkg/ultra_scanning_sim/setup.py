@@ -28,6 +28,8 @@ setup(
     entry_points={
         'console_scripts': [
             'ee_state_from_tf_node = ultra_scanning_sim.ee_state_from_tf_node:main',
+            'wrench_frame_transform_node = ultra_scanning_sim.wrench_frame_transform_node:main',
+            'force_sensor_pose_test_node = ultra_scanning_sim.force_sensor_pose_test_node:main',
         ],
     },
 )

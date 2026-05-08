@@ -28,6 +28,7 @@
   <exec_depend>robot_trajectory_planner</exec_depend>
   <exec_depend>ur5_state_broadcaster</exec_depend>
   <exec_depend>ur5_sim_servo_control</exec_depend>
+  <exec_depend>ur_moveit_config</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>

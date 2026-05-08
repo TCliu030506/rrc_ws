@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# 用于发布从tool0_controller到sensor_frame的静态变换，从而使得力传感器数据能够正确转换到机械臂的tool0_controller坐标系下
+
 
 import rclpy
 from rclpy.node import Node

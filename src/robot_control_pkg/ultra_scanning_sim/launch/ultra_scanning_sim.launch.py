@@ -209,6 +209,13 @@ def generate_launch_description():
                         'topic_desired_accel': desired_accel_topic,
                     }.items(),
                 ),
+                # IncludeLaunchDescription(
+                #     PythonLaunchDescriptionSource(PathJoinSubstitution([
+                #         FindPackageShare('robot_trajectory_planner'),
+                #         'launch',
+                #         'scan_cylindrical_surface.launch.py',
+                #     ])),
+                # ),
             ],
         ),
 

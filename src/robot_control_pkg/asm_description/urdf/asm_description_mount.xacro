@@ -57,25 +57,20 @@
       <origin xyz="0 0 0.0145" rpy="0 0 -3.1416"/>
       <parent link="${prefix}base_link"/>
       <child link="${prefix}force_sensor_link"/>
-      <axis xyz="0 0 0"/>
-      <limit lower="-3.1416" upper="3.1416" effort="20" velocity="0.5"/>
-      <dynamics damping="10" friction="10"/>
     </joint>
 
     <gazebo reference="${prefix}force_sensor_joint">
-      <preserveFixedJoint>true</preserveFixedJoint>
+      <disableFixedJointLumping>true</disableFixedJointLumping>
+      <!-- <preserveFixedJoint>true</preserveFixedJoint> -->
       <provideFeedback>true</provideFeedback>
     </gazebo>
 
     <gazebo>
       <plugin name="${prefix}ft_sensor" filename="libgazebo_ros_ft_sensor.so">
-        <update_rate>500.0</update_rate>
+        <update_rate>50.0</update_rate>
         <joint_name>${prefix}force_sensor_joint</joint_name>
-        <body_name>${prefix}force_sensor_link</body_name>
-        <topic_name>/${prefix}wrench</topic_name>
+        <topic_name>${prefix}wrench</topic_name>
         <frame_name>${prefix}force_sensor_link</frame_name>
-        <topicName>/${prefix}wrench</topicName>
-        <frameName>${prefix}force_sensor_link</frameName>
         <gaussian_noise>0.0</gaussian_noise>
       </plugin>
     </gazebo>
@@ -107,9 +102,6 @@
       <origin xyz="0 0 0.0095" rpy="0 0 3.1416"/>
       <parent link="${prefix}force_sensor_link"/>
       <child link="${prefix}tool_base_link"/>
-      <axis xyz="0 0 0"/>
-      <limit lower="-3.1416" upper="3.1416" effort="20" velocity="0.5"/>
-      <dynamics damping="10" friction="10"/>
     </joint>
 
     <link name="${prefix}tool_link1">
@@ -140,15 +132,15 @@
       <parent link="${prefix}tool_base_link"/>
       <child link="${prefix}tool_link1"/>
       <axis xyz="0 -1 0"/>
-      <limit lower="-0.1500" upper="0.1500" effort="20" velocity="0.5"/>
+      <limit lower="-0.150" upper="0.150" effort="20" velocity="0.5"/>
       <dynamics damping="10" friction="10"/>
     </joint>
 
     <link name="${prefix}tool_link2">
       <inertial>
-        <origin xyz="-0.00023235 0.0001851 -0.0026657" rpy="0 0 0"/>
-        <mass value="0.31471"/>
-        <inertia ixx="0.00076298" ixy="4.0202E-07" ixz="-5.4052E-08" iyy="0.00023426" iyz="1.1979E-05" izz="0.00082144"/>
+        <origin xyz="0.0002913455 0.000318296 -0.00323911" rpy="0 0 0"/>
+        <mass value="0.88511"/>
+        <inertia ixx="0.00154817856510197" ixy="4.02023704298794E-07" ixz="-5.40521590240743E-08" iyy="0.000250743675706725" iyz="-9.139856638242E-08" izz="0.00161984070330138"/>
       </inertial>
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -172,15 +164,15 @@
       <parent link="${prefix}tool_link1"/>
       <child link="${prefix}tool_link2"/>
       <axis xyz="1 0 0"/>
-      <limit lower="-0.3000" upper="0.3000" effort="20" velocity="0.5"/>
+      <limit lower="-0.30" upper="0.30" effort="20" velocity="0.5"/>
       <dynamics damping="10" friction="10"/>
     </joint>
 
     <link name="${prefix}camera_link">
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0"/>
-        <mass value="0"/>
-        <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0"/>
+        <mass value="0.001"/>
+        <inertia ixx="1e-6" ixy="1e-6" ixz="1e-6" iyy="1e-6" iyz="1e-6" izz="1e-6"/>
       </inertial>
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>

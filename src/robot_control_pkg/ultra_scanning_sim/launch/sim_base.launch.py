@@ -13,7 +13,7 @@ def generate_launch_description():
             'myworld.world',
         ])),
         DeclareLaunchArgument('gazebo_gui', default_value='true'),
-        DeclareLaunchArgument('launch_rviz', default_value='false'),
+        DeclareLaunchArgument('launch_rviz', default_value='true'),
 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(PathJoinSubstitution([
