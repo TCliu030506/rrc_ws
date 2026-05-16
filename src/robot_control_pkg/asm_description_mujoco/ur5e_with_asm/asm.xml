@@ -1,0 +1,76 @@
+<mujoco model="asm_description">
+  <compiler angle="radian" meshdir="assets"/>
+  <option timestep="0.002"/>
+
+  <asset>
+    <mesh name="base_link" file="base_link.STL"/>
+    <mesh name="force_sensor_link" file="force_sensor_link.STL"/>
+    <mesh name="tool_base_link" file="tool_base_link.STL"/>
+    <mesh name="tool_link1" file="tool_link1.STL"/>
+    <mesh name="tool_link2" file="tool_link2.STL"/>
+    <mesh name="camera_link" file="camera_link.STL"/>
+  </asset>
+
+  <worldbody>
+    <!-- asm_base 对应 ur5_with_asm.xml 中的 wrist_3_link -->
+    <body name="asm_base" pos="0 0 0" quat="0 0 0 1">
+      <!-- base_link 直接在 asm_base 上，无偏移 -->
+      <inertial pos="0.043666 0 0.0025" mass="0.043002" diaginertia="1.4601e-05 6.817e-05 8.2592e-05"/>
+      <geom type="mesh" mesh="base_link" rgba="1 1 1 1"/>
+
+      <!-- camera_link: 直接在 asm_base 上 -->
+      <!-- <camera name="c2" pos="1 0 1" mode="targetbody" target="B" fovy="54.225" /> -->
+      <body name="camera_link" pos="0.1 -0.0011863 0.005">
+          <camera name="c1" mode="fixed" fovy="100" euler="0 3.14 1.57" pos="0 0 0.05" />
+          <geom type="mesh" mesh="camera_link" rgba="0.9 0.9 0.9 1" />
+      </body>
+
+      <camera name="c2" pos="0.5 0.5 0" mode="targetbody" target="camera_link" fovy="54.225" />
+
+      <!-- ========== 力传感器 link（位于动力学链上）========== -->
+      <body name="asm_force_sensor_link" pos="0 0 0.0145" quat="0 0 0 -1">
+        <inertial pos="-0.00034904 0.00034904 -6.9694e-05" mass="0.01707" diaginertia="1.9259e-06 1.9259e-06 2.8862e-06"/>
+        <geom type="mesh" mesh="force_sensor_link" rgba="0.79216 0.81961 0.93333 1"/>
+        
+        <!-- 力传感器测量点 -->
+        <site name="asm_force_sensor_site" pos="0 0 0" size="0.005"/>
+
+        <!-- ========== asm_tool_base_link 现在是 asm_force_sensor_link 的子节点 ========== -->
+        <body name="asm_tool_base_link" pos="0 0 0.0095">
+          <inertial pos="3.1503e-15 0 0.01886" mass="0.065358" diaginertia="4.3832e-05 3.1672e-05 3.6046e-05"/>
+          <geom type="mesh" mesh="tool_base_link" rgba="0.72216 0.71961 0.83333 1" conaffinity="0"/>
+
+          <!-- ASM tool_link1 -->
+          <body name="asm_tool_link1" pos="0 0 0.074">
+            <inertial pos="-0.00057962 -0.00051221 -0.0055231" mass="0.099171" diaginertia="6.8128e-05 5.472e-05 3.1648e-05"/>
+            <joint name="asm_tool_joint1" type="hinge" axis="0 -1 0" range="-0.15 0.15" damping="0.1" frictionloss="0.1"/>
+            <geom type="mesh" mesh="tool_link1" rgba="0.43137 0.45098 0.43137 1" conaffinity="0"/>
+
+            <!-- ASM tool_link2 -->
+            <body name="asm_tool_link2" pos="0 0 0.0495">
+              <inertial pos="0.0002913455 0.000318296 -0.00323911" mass="0.88511" diaginertia="0.00154817856510197 0.000250743675706725 0.00161984070330138"/>
+              <joint name="asm_tool_joint2" type="hinge" axis="1 0 0" range="-0.3 0.3" damping="0.1" frictionloss="0.1"/>
+              <geom type="mesh" mesh="tool_link2" rgba="0.79216 0.81961 0.93333 1" conaffinity="0"/>
+              <site name="asm_ee_site" pos="0 0 0" size="0.005"/>
+            </body>
+          </body>
+        </body>
+        <!-- ========== asm_tool_base_link 结束 ========== -->
+      </body>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <force name="asm_force" site="asm_force_sensor_site"/>
+    <torque name="asm_torque" site="asm_force_sensor_site"/>
+    <jointpos name='link1_pos' joint='asm_tool_joint1' />
+    <jointpos name='link2_pos' joint='asm_tool_joint2' />
+  </sensor>
+
+  <actuator>
+    <position name="tool_joint1_pos" joint="asm_tool_joint1" kp="10" kv="0.1" ctrlrange="-0.15 0.15"/>
+    <position name="tool_joint2_pos" joint="asm_tool_joint2" kp="10" kv="0.1" ctrlrange="-0.30 0.30"/>
+  </actuator>
+
+
+ </mujoco>

@@ -1,0 +1,24 @@
+mujoco_dynamic_gravity_calibration_node:
+  ros__parameters:
+    joint_states_topic: /joint_states
+    joint_command_topic: /command_joint
+    wrench_topic: /sensors/wrench
+    world_frame: world
+    sensor_frame: asm_force_sensor_link
+    gravity_norm: 9.81
+    sample_period_sec: 0.05
+    samples_per_pose: 10
+    move_time_sec: 1.2
+    stable_velocity_threshold: 0.05
+    stable_duration_sec: 0.2
+    stable_timeout_sec: 20.0
+    wrist_delta_rad: 3.14
+    wrist_pose_samples: 10
+    link_frames:
+      - asm_tool_base_link
+      - asm_tool_link1
+      - asm_tool_link2
+    tool_joint_names:
+      - asm_tool_joint1
+      - asm_tool_joint2
+    output_file: /home/liutiancheng/Lab_WS/rrc_ws/src/robot_control_pkg/tool_gravity_compensation/config/tool_gravity_calibration_mujoco_dynamic.json

@@ -30,6 +30,8 @@ setup(
             'ee_state_from_tf_node = ultra_scanning_sim.ee_state_from_tf_node:main',
             'wrench_frame_transform_node = ultra_scanning_sim.wrench_frame_transform_node:main',
             'force_sensor_pose_test_node = ultra_scanning_sim.force_sensor_pose_test_node:main',
+            'pose_to_pose_stamped_bridge = ultra_scanning_sim.pose_to_pose_stamped_bridge:main',
+            'pose_stamped_to_pose_bridge = ultra_scanning_sim.pose_stamped_to_pose_bridge:main',
         ],
     },
 )

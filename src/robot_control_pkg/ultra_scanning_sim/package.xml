@@ -23,6 +23,7 @@
   <exec_depend>builtin_interfaces</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>asm_description</exec_depend>
+  <exec_depend>asm_description_mujoco</exec_depend>
   <exec_depend>tool_gravity_compensation</exec_depend>
   <exec_depend>robot_admittance_control</exec_depend>
   <exec_depend>robot_trajectory_planner</exec_depend>

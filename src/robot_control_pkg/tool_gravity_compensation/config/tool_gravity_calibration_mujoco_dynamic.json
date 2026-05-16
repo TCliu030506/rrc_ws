@@ -1,0 +1,49 @@
+{
+  "estimated_at": "2026-05-14T16:20:54.904619",
+  "mode": "mujoco_dynamic_auto",
+  "world_frame": "world",
+  "sensor_frame": "asm_force_sensor_link",
+  "gravity_norm": 9.81,
+  "sample_count": 310,
+  "rank": 12,
+  "rms_residual": 16.64135960294896,
+  "link_frames": [
+    "asm_tool_base_link",
+    "asm_tool_link1",
+    "asm_tool_link2"
+  ],
+  "link_masses": [
+    0.29431923407380706,
+    0.25843848512702533,
+    0.3851697937230855
+  ],
+  "link_com_x": [
+    -0.0096359019960821,
+    -0.01062088969616116,
+    -0.010620889696161161
+  ],
+  "link_com_y": [
+    0.01632152107364137,
+    0.01632152107364144,
+    0.01785482173380265
+  ],
+  "link_com_z": [
+    -1.2121874644421913e-05,
+    6.400571141216074e-05,
+    0.0012881078883469946
+  ],
+  "force_bias": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "torque_bias": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "tool_joint_names": [
+    "asm_tool_joint1",
+    "asm_tool_joint2"
+  ]
+}

@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 import rclpy
 from geometry_msgs.msg import Pose, PoseStamped, Twist
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 
 
 def _quat_conjugate(q: Tuple[float, float, float, float]) -> Tuple[float, float, float, float]:
@@ -54,6 +55,7 @@ class TcpTwistEstimator(Node):
         self.prev_pos: Optional[Tuple[float, float, float]] = None
         self.prev_quat: Optional[Tuple[float, float, float, float]] = None
 
+        # 输入来自传感器/仿真状态流，使用 sensor_data QoS 与发布端兼容
         self.pose_sub = self.create_subscription(PoseStamped, input_pose_topic, self.pose_callback, 50)
         self.pose_pub = self.create_publisher(Pose, output_pose_topic, 50)
         self.twist_pub = self.create_publisher(Twist, output_twist_topic, 50)

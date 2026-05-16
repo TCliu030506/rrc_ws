@@ -22,6 +22,12 @@ def generate_launch_description():
     pose_smoothing_alpha_linear = LaunchConfiguration('pose_smoothing_alpha_linear')
     pose_smoothing_alpha_angular = LaunchConfiguration('pose_smoothing_alpha_angular')
     params_file = LaunchConfiguration('admittance_params_file')
+    
+    # 添加坐标系参数
+    base_frame = LaunchConfiguration('base_frame')
+    ee_frame = LaunchConfiguration('ee_frame')
+    world_frame = LaunchConfiguration('world_frame')
+    reference_frame = LaunchConfiguration('reference_frame')
 
     default_params = os.path.join(
         get_package_share_directory('robot_admittance_control'),
@@ -30,8 +36,9 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        DeclareLaunchArgument('pose_topic_arm', default_value='/gazebo/ee_pose'),
-        DeclareLaunchArgument('twist_topic_arm', default_value='/gazebo/ee_twist'),
+        # ========== 原有参数 ==========
+        DeclareLaunchArgument('pose_topic_arm', default_value='/mujoco/ee_pose'),
+        DeclareLaunchArgument('twist_topic_arm', default_value='/mujoco/ee_twist'),
         DeclareLaunchArgument('wrench_ext_topic_arm', default_value='/wrench_compensated'),
         DeclareLaunchArgument('wrench_ctr_topic_arm', default_value='/admittance/control_wrench'),
         DeclareLaunchArgument('cmd_topic_arm', default_value='/admittance/cmd_twist'),
@@ -45,6 +52,29 @@ def generate_launch_description():
         DeclareLaunchArgument('pose_smoothing_alpha_linear', default_value='0.25'),
         DeclareLaunchArgument('pose_smoothing_alpha_angular', default_value='0.20'),
         DeclareLaunchArgument('admittance_params_file', default_value=default_params),
+        
+        # ========== 坐标系参数 ==========
+        DeclareLaunchArgument(
+            'base_frame',
+            default_value='base',
+            description='Base frame name for the robot arm',
+        ),
+        DeclareLaunchArgument(
+            'ee_frame',
+            default_value='asm_force_sensor_link',
+            description='End effector frame name',
+        ),
+        DeclareLaunchArgument(
+            'world_frame',
+            default_value='world',
+            description='World frame name',
+        ),
+        DeclareLaunchArgument(
+            'reference_frame',
+            default_value='world',
+            description='Reference frame for admittance control',
+        ),
+        
         Node(
             package='robot_admittance_control',
             executable='admittance_controller_node',
@@ -67,6 +97,12 @@ def generate_launch_description():
                     'twist_smoothing_alpha_angular': twist_smoothing_alpha_angular,
                     'pose_smoothing_alpha_linear': pose_smoothing_alpha_linear,
                     'pose_smoothing_alpha_angular': pose_smoothing_alpha_angular,
+                    
+                    # # 添加坐标系参数到节点
+                    # 'base_frame': base_frame,
+                    # 'ee_frame': ee_frame,
+                    # 'world_frame': world_frame,
+                    # 'reference_frame': reference_frame,
                 },
             ],
         ),

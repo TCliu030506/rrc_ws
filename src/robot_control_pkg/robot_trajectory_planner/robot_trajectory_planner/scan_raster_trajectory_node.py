@@ -2,7 +2,8 @@ import math
 import time
 
 import rclpy
-from geometry_msgs.msg import Accel, Pose, Twist
+from geometry_msgs.msg import Accel, Pose, Twist ,PoseStamped
+from rclpy.qos import qos_profile_sensor_data
 from rclpy.node import Node
 
 
@@ -14,7 +15,7 @@ class ScanRasterTrajectoryNode(Node):
         self.declare_parameter('topic_desired_twist', '/scan/desired_twist')
         self.declare_parameter('topic_desired_accel', '/scan/desired_accel')
 
-        self.declare_parameter('publish_rate', 125.0)
+        self.declare_parameter('publish_rate', 50.0)
         self.declare_parameter('scan_center', [0.45, 0.0, 0.45])
         self.declare_parameter('scan_length_x', 0.20)
         self.declare_parameter('scan_width_y', 0.10)
@@ -25,6 +26,8 @@ class ScanRasterTrajectoryNode(Node):
         # 初始过渡参数
         self.declare_parameter('initial_blend_duration', 5.0)  # 初始过渡时间（秒）
         self.declare_parameter('initial_blend_speed', 0.02)    # 初始过渡速度（m/s）
+        # 当前末端位姿订阅
+        self.declare_parameter('current_pose_topic', '/end_effector_pose')
 
         topic_pose = str(self.get_parameter('topic_desired_pose').value)
         topic_twist = str(self.get_parameter('topic_desired_twist').value)
@@ -41,6 +44,8 @@ class ScanRasterTrajectoryNode(Node):
         # 初始过渡参数
         self.initial_blend_duration = float(self.get_parameter('initial_blend_duration').value)
         self.initial_blend_speed = float(self.get_parameter('initial_blend_speed').value)
+
+        self.current_pose_topic = str(self.get_parameter('current_pose_topic').value)
 
         if len(center) != 3:
             raise ValueError('scan_center must be length 3')
@@ -73,9 +78,14 @@ class ScanRasterTrajectoryNode(Node):
         self.segment_duration = self.line_duration + self.turn_pause
         self.full_cycle_duration = self.segment_duration * self.line_count
 
+        # desired_* 是控制参考，使用默认 reliable QoS 以匹配导纳控制器订阅端
         self.pose_pub = self.create_publisher(Pose, topic_pose, 10)
         self.twist_pub = self.create_publisher(Twist, topic_twist, 10)
         self.accel_pub = self.create_publisher(Accel, topic_accel, 10)
+
+        # 订阅当前末端位置，用于等待机器人达到 home 并稳定
+        self.current_pose = None
+        self.pose_sub = self.create_subscription(PoseStamped, self.current_pose_topic, self._pose_callback, qos_profile=qos_profile_sensor_data)
 
         # 初始位置跟踪变量
         self.initial_position_set = False
@@ -83,29 +93,46 @@ class ScanRasterTrajectoryNode(Node):
         self.start_y = 0.0
         self.start_z = 0.0
 
-        self.t0 = time.monotonic()
+        # t0 在确认初始位置并准备开始过渡后设置
+        self.t0 = None
         self.timer = self.create_timer(1.0 / self.publish_rate, self._on_timer)
 
         self.get_logger().info(
             'Scan raster trajectory started. '
             f'lines={self.line_count}, spacing={self.actual_spacing:.4f}, '
-            f'topics=({topic_pose}, {topic_twist}, {topic_accel})'
+            f'topics=({topic_pose}, {topic_twist}, {topic_accel}), '
+            f'current_pose_topic={self.current_pose_topic}'
         )
 
     def _on_timer(self) -> None:
+        # 正常运行阶段
+        if self.t0 is None:
+            # 若未初始化 t0，则设置为当前时间以启动过渡
+            self.t0 = time.monotonic()
         t = time.monotonic() - self.t0
 
         # 初始过渡阶段：从当前位置移动到扫描起始位置
         if t < self.initial_blend_duration:
-            # 第一次进入时记录当前位置
+            # 第一次进入时记录当前位置（如果之前未记录）
             if not self.initial_position_set:
-                # 使用扫描起始位置作为初始目标
-                # 如果能获取当前机器人位置，可以在这里订阅并记录
-                # 这里简化处理：使用扫描区域的起始点作为过渡目标
-                # 实际应用中可以订阅 /ee_pose 等话题获取当前位置
-                self.start_x = self.x_min  # 可替换为实际当前位置
-                self.start_y = self.y_min
-                self.start_z = self.cz
+                # 若在启动时未等待 home 或未收到位姿，则回退到扫描起始点
+                if self.current_pose is not None:
+                    self.start_x = self.current_pose.pose.position.x
+                    self.start_y = self.current_pose.pose.position.y
+                    self.start_z = self.current_pose.pose.position.z
+                else:
+                    self.start_x = self.x_min
+                    self.start_y = self.y_min
+                    self.start_z = self.cz
+
+                # 根据距离动态调整过渡时长，确保不会产生超速命令
+                dist = math.sqrt((self.start_x - self.x_min) ** 2 + (self.start_y - self.y_min) ** 2 + (self.start_z - self.cz) ** 2)
+                required_duration = dist / max(self.initial_blend_speed, 1e-6)
+                if required_duration > self.initial_blend_duration:
+                    old = self.initial_blend_duration
+                    self.initial_blend_duration = required_duration * 1.2
+                    self.get_logger().info(f'Extended initial_blend_duration from {old:.2f}s to {self.initial_blend_duration:.2f}s to limit speed.')
+
                 self.initial_position_set = True
                 self.get_logger().info(
                     f'Starting initial blend from ({self.start_x:.3f}, {self.start_y:.3f}, {self.start_z:.3f}) '
@@ -134,10 +161,12 @@ class ScanRasterTrajectoryNode(Node):
             dy = (target_y - self.start_y) / self.initial_blend_duration
             dz = (target_z - self.start_z) / self.initial_blend_duration
 
-            # 速度也应用相同的平滑函数
-            vx = dx * smooth_ratio * 2  # *2 补偿正弦曲线的平均值
-            vy = dy * smooth_ratio * 2
-            vz = dz * smooth_ratio * 2
+            # 精确计算位置导数：smooth_ratio' = (pi/(2*T)) * sin(pi * blend_ratio)
+            T = self.initial_blend_duration
+            smooth_dot = (math.pi / (2.0 * T)) * math.sin(math.pi * blend_ratio)
+            vx = (target_x - self.start_x) * smooth_dot
+            vy = (target_y - self.start_y) * smooth_dot
+            vz = (target_z - self.start_z) * smooth_dot
 
             # 限制最大过渡速度
             vel_norm = math.sqrt(vx**2 + vy**2 + vz**2)
@@ -186,14 +215,14 @@ class ScanRasterTrajectoryNode(Node):
 
             z = self.cz
 
-        pose = Pose()
-        pose.position.x = x
-        pose.position.y = y
-        pose.position.z = z
-        pose.orientation.x = self.qx
-        pose.orientation.y = self.qy
-        pose.orientation.z = self.qz
-        pose.orientation.w = self.qw
+        desired_pose = Pose()
+        desired_pose.position.x = x
+        desired_pose.position.y = y
+        desired_pose.position.z = z
+        desired_pose.orientation.x = self.qx
+        desired_pose.orientation.y = self.qy
+        desired_pose.orientation.z = self.qz
+        desired_pose.orientation.w = self.qw
 
         twist = Twist()
         twist.linear.x = vx
@@ -211,9 +240,13 @@ class ScanRasterTrajectoryNode(Node):
         accel.angular.y = 0.0
         accel.angular.z = 0.0
 
-        self.pose_pub.publish(pose)
+        self.pose_pub.publish(desired_pose)
         self.twist_pub.publish(twist)
         self.accel_pub.publish(accel)
+
+    def _pose_callback(self, msg: PoseStamped) -> None:
+        # 存储当前位姿
+        self.current_pose = msg
 
 
 def main(args=None) -> None:
