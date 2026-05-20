@@ -49,6 +49,13 @@ add_executable(twist_to_urscript_speedl_node
   src/twist_to_urscript_speedl_node.cpp
 )
 
+add_executable(adaptive_control_wrench_publisher_node
+  src/adaptive_control_wrench_publisher_node.cpp
+)
+add_executable(adaptive_control_wrench_publisher_node_test
+  src/adaptive_control_wrench_publisher_node_test.cpp
+)
+
 ament_target_dependencies(admittance_controller_node
   rclcpp
   geometry_msgs
@@ -79,6 +86,18 @@ ament_target_dependencies(twist_to_urscript_speedl_node
   ur5_control_cpp
 )
 
+ament_target_dependencies(adaptive_control_wrench_publisher_node
+  rclcpp
+  geometry_msgs
+  tf2
+  tf2_ros
+)
+
+ament_target_dependencies(adaptive_control_wrench_publisher_node_test
+  rclcpp
+  geometry_msgs
+)
+
 # 新增三轴力转发节点
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/three_axis_force_relay.cpp")
   add_executable(three_axis_force_relay
@@ -101,6 +120,8 @@ install(TARGETS
   ${INSTALL_TARGETS}
   control_wrench_publisher_node
   twist_to_urscript_speedl_node
+  adaptive_control_wrench_publisher_node
+  adaptive_control_wrench_publisher_node_test
   DESTINATION lib/${PROJECT_NAME}
 )
 

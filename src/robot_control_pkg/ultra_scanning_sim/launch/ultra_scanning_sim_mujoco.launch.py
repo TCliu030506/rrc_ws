@@ -13,6 +13,8 @@ def generate_launch_description():
     use_viewer = LaunchConfiguration('use_viewer')
     publish_rgb = LaunchConfiguration('publish_rgb')
     publish_depth = LaunchConfiguration('publish_depth')
+    camera_names = LaunchConfiguration('camera_names')
+    use_camera_visualizer = LaunchConfiguration('use_camera_visualizer')
     publish_end_effector_pose = LaunchConfiguration('publish_end_effector_pose')
     end_effector_pose_topic = LaunchConfiguration('end_effector_pose_topic')
     cartesian_command_topic = LaunchConfiguration('cartesian_command_topic')
@@ -71,6 +73,9 @@ def generate_launch_description():
         DeclareLaunchArgument('use_viewer', default_value='true'),
         DeclareLaunchArgument('publish_rgb', default_value='true'),
         DeclareLaunchArgument('publish_depth', default_value='false'),
+        DeclareLaunchArgument('camera_names', default_value="camera_fixed,camera_targetbody"),
+        DeclareLaunchArgument('show_depth', default_value='false'),
+        DeclareLaunchArgument('use_camera_visualizer', default_value='false'),
         DeclareLaunchArgument('publish_end_effector_pose', default_value='true'),
         DeclareLaunchArgument('end_effector_pose_topic', default_value='/end_effector_pose'),
         DeclareLaunchArgument('cartesian_command_topic', default_value='/cartesian_target_pose'),
@@ -98,18 +103,19 @@ def generate_launch_description():
         DeclareLaunchArgument('desired_twist_topic', default_value='/scan/desired_twist'),
         DeclareLaunchArgument('desired_accel_topic', default_value='/scan/desired_accel'),
 
-        # ========== 5. 扫描轨迹规划参数 ==========
+        # ========== 5. 扫描轨迹规划参数（圆柱扫查） ==========
         # 5.1 轨迹发布公共参数
         DeclareLaunchArgument('publish_rate', default_value='20.0'),
 
         # 5.2 起始过渡参数：机械臂当前位姿 -> 扫查起点
+        # initial_blend_duration 控制从当前末端位姿平滑过渡到扫查起点的时长
         DeclareLaunchArgument('current_pose_topic', default_value='/end_effector_pose'),
-        DeclareLaunchArgument('initial_blend_duration', default_value='2.0'),
+        DeclareLaunchArgument('initial_blend_duration', default_value='30.0'),
 
         # 5.3 圆柱扫查几何参数
         DeclareLaunchArgument('scan_center_x', default_value='0.80'),
         DeclareLaunchArgument('scan_center_z', default_value='0.55'),
-        DeclareLaunchArgument('scan_radius', default_value='0.40'),
+        DeclareLaunchArgument('scan_radius', default_value='0.30'),
         DeclareLaunchArgument('scan_y_start', default_value='0.0'),
         DeclareLaunchArgument('scan_y_end', default_value='0.20'),
         DeclareLaunchArgument('scan_y_step', default_value='0.05'),
@@ -123,6 +129,7 @@ def generate_launch_description():
         DeclareLaunchArgument('scan_contact_offset', default_value='0.0'),
 
         # 5.5 层间过渡参数：y 切换时平滑过渡到下一层
+        # 该参数控制每次完成一层圆弧后，从当前 y 平滑移动到下一层 y 的过渡时长
         DeclareLaunchArgument('y_transition_duration', default_value='4.0'),
 
         # ========== 节点启动配置 ==========
@@ -140,10 +147,13 @@ def generate_launch_description():
                 'use_viewer': use_viewer,
                 'publish_rgb': publish_rgb,
                 'publish_depth': publish_depth,
+                'camera_names': camera_names,
                 'publish_end_effector_pose': publish_end_effector_pose,
                 'end_effector_pose_topic': end_effector_pose_topic,
                 'cartesian_command_topic': cartesian_command_topic,
                 'external_wrench_topic': wrench_topic,
+                'use_camera_visualizer': use_camera_visualizer,
+                'show_depth': LaunchConfiguration('show_depth'),
             }.items(),
         ),
 
@@ -168,7 +178,7 @@ def generate_launch_description():
             ],
         ),
         
-        # 3. 圆柱面扫描轨迹规划器（暂时不修改参数）
+        # 3. 圆柱面扫描轨迹规划器
         TimerAction(
             period=2.5,
             actions=[
@@ -298,4 +308,37 @@ def generate_launch_description():
                 ),
             ],
         ),
+
+        # # 7. 控制力发布节点
+        # TimerAction(
+        #     period=2.5,
+        #     condition=IfCondition(enable_admittance),
+        #     actions=[
+        #         IncludeLaunchDescription(
+        #             PythonLaunchDescriptionSource(
+        #                 PathJoinSubstitution([
+        #                     FindPackageShare('robot_admittance_control'),
+        #                     'launch',
+        #                     'adaptive_control_wrench_publisher.launch.py',
+        #                 ])
+        #             ),
+        #             launch_arguments={
+        #                 'topic_control_wrench': '/arm_admittance_control/control_wrench',
+        #                 'topic_compensated_wrench': compensated_wrench_topic,
+        #                 'frame_id': 'asm_ee_site',
+        #                 'publish_rate': '100.0',
+        #                 'tf_lookup_timeout_sec': '0.05',
+        #                 'normal_axis': 'z',
+        #                 'normal_axis_sign': '-1.0',
+        #                 'contact_force_threshold': '2.0',
+        #                 'release_force_threshold': '2.0',
+        #                 'force_target': '10.0',
+        #                 'force_rate_limit': '20.0',
+        #                 'force_tracking_epsilon': '0.5',
+        #             }.items(),
+        #         ),
+        #     ],
+        # ),
+
+
     ])

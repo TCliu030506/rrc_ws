@@ -8,7 +8,8 @@
     <headlight diffuse="0.6 0.6 0.6" ambient="0.1 0.1 0.1" specular="0 0 0"/>
     <rgba haze="0.15 0.25 0.35 1"/>
     <global azimuth="120" elevation="-20"/>
-    <quality shadowsize="1024" numslices="32" offsamples="2" />
+    <quality shadowsize="512" numslices="32" offsamples="2" />
+    <!-- <quality shadowsize="1024" numslices="32" offsamples="2" /> -->
   </visual>
 
   <asset>
@@ -22,9 +23,9 @@
     <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
 
-    <!-- <body name="steel_pipe" pos="0.8 0 0.55" quat="0.7071068 0.7071068 0 0">
+    <body name="steel_pipe" pos="0.8 0 0.55" quat="0.7071068 0.7071068 0 0">
       <geom name="steel_pipe_geom" type="cylinder" size="0.3 0.5" rgba="0.65 0.65 0.68 1" contype="1" conaffinity="1" />
-    </body> -->
+    </body>
     
   </worldbody>
 

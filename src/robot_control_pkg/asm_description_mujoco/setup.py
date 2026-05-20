@@ -51,7 +51,7 @@ setup(
             _rel_glob(package_root, 'launch/*.py'),
         ),
     ],
-    install_requires=['setuptools', 'numpy', 'mujoco', 'glfw'],
+    install_requires=['setuptools', 'numpy', 'mujoco', 'glfw', 'opencv-python'],
     zip_safe=True,
     maintainer='liutiancheng',
     maintainer_email='14011673+liu-tiancheng0506@user.noreply.gitee.com',
@@ -67,6 +67,7 @@ setup(
             'asm_ros2_node = asm_description_mujoco.asm_ros2_node:main',
             'asm_keyboard_teleop = asm_description_mujoco.keyboard_teleop:main',
             'mujoco_tf_broadcaster = asm_description_mujoco.mujoco_tf_broadcaster:main',
+            'camera_visualizer_node = asm_description_mujoco.camera_visualizer_node:main',
         ],
     },
 )

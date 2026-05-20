@@ -15,7 +15,7 @@ def generate_launch_description():
         DeclareLaunchArgument('topic_desired_twist', default_value='/scan/desired_twist'),
         DeclareLaunchArgument('topic_desired_accel', default_value='/scan/desired_accel'),
         DeclareLaunchArgument('current_pose_topic', default_value='/end_effector_pose'),
-        DeclareLaunchArgument('initial_blend_duration', default_value='2.0'),
+        DeclareLaunchArgument('initial_blend_duration', default_value='10.0'),
         DeclareLaunchArgument('publish_rate', default_value='20.0'),
         DeclareLaunchArgument('center_x', default_value='0.80'),
         DeclareLaunchArgument('center_z', default_value='0.55'),

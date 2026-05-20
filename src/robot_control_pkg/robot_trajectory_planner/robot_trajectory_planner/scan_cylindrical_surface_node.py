@@ -124,7 +124,7 @@ class ScanCylindricalSurfaceNode(Node):
         self.declare_parameter('contact_offset', 0.0)
 
         # ========== 初始过渡时间 ==========
-        self.declare_parameter('initial_blend_duration', 2.0)
+        self.declare_parameter('initial_blend_duration', 10.0)
         self.declare_parameter('current_pose_topic', '/end_effector_pose')
         # ========== 层间Y平滑过渡参数 ==========
         # 当完成一层圆弧后，在从当前 y 移动到下一层 y 时使用该时长进行线性过渡
@@ -198,7 +198,7 @@ class ScanCylindricalSurfaceNode(Node):
         self._initial_blend_started = False            # 起始过渡是否已初始化
         self._initial_blend_complete = False           # 起始过渡是否已完成
         self._initial_blend_step = 0                   # 起始过渡当前步数
-        self._initial_blend_steps = max(1, int(round(self.initial_blend_duration * self.publish_rate)))
+        self._initial_blend_steps = max(1, int(round(self.initial_blend_duration * self.publish_rate)))  # 起始过渡总步数
         self._initial_blend_start_pose = None          # 起始过渡起点位姿
         self._initial_blend_target_pose = None         # 起始过渡终点位姿
         self._waiting_for_pose_logged = False          # 是否已提示等待当前位姿
@@ -395,6 +395,15 @@ class ScanCylindricalSurfaceNode(Node):
         pose.orientation.w = float(qw)
         return pose
 
+    @staticmethod
+    def _ease_out_cubic(alpha: float) -> float:
+        """
+        三次缓出曲线：前快后慢，适合靠近目标时降低速度。
+        alpha 输入范围应为 [0, 1]。
+        """
+        alpha = max(0.0, min(1.0, alpha))
+        return 1.0 - (1.0 - alpha) ** 3
+
     def _prepare_initial_blend(self) -> None:
         if self.current_pose is None:
             return
@@ -431,8 +440,8 @@ class ScanCylindricalSurfaceNode(Node):
 
         blend_ratio = float(step) / float(self._initial_blend_steps)
         next_blend_ratio = float(next_step) / float(self._initial_blend_steps)
-        smooth_ratio = (1.0 - math.cos(blend_ratio * math.pi)) / 2.0
-        next_smooth_ratio = (1.0 - math.cos(next_blend_ratio * math.pi)) / 2.0
+        smooth_ratio = self._ease_out_cubic(blend_ratio)
+        next_smooth_ratio = self._ease_out_cubic(next_blend_ratio)
 
         pose = self._interpolate_pose(self._initial_blend_start_pose, self._initial_blend_target_pose, smooth_ratio)
         next_pose = self._interpolate_pose(self._initial_blend_start_pose, self._initial_blend_target_pose, next_smooth_ratio)

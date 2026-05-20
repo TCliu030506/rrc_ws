@@ -54,22 +54,13 @@ class RenderedFrame:
 @dataclass
 class SimState:
   stamp: object
-  sim_time: float
   qpos: np.ndarray
   qvel: np.ndarray
+  site_pos: Optional[np.ndarray]
+  site_xmat: Optional[np.ndarray]
   sensordata: np.ndarray
-  site_xpos: np.ndarray
-  site_xmat: np.ndarray
   ext_force: Optional[np.ndarray]
   ext_torque: Optional[np.ndarray]
-
-
-@dataclass
-class CommandState:
-  stamp: object
-  raw_ctrl: Optional[np.ndarray] = None
-  joint_target: Optional[np.ndarray] = None
-  cartesian_target: Optional[PoseStamped] = None
 
 
 class MujocoRos2Node(Node):
@@ -107,9 +98,9 @@ class MujocoRos2Node(Node):
     self.declare_parameter("pack_queue_size", 4)
     float_descriptor = ParameterDescriptor(dynamic_typing=True)
     self.declare_parameter("step_rate_hz", 0.0, float_descriptor)
-    self.declare_parameter("publish_rate_hz", 100.0, float_descriptor)
-    self.declare_parameter("render_rate_hz", 15.0, float_descriptor)
-    self.declare_parameter("viewer_rate_hz", 30.0, float_descriptor)
+    self.declare_parameter("publish_rate_hz", 50.0, float_descriptor)
+    self.declare_parameter("render_rate_hz", 0.0, float_descriptor)
+    self.declare_parameter("viewer_rate_hz", 60.0, float_descriptor)
     self.declare_parameter("render_only_with_subscribers", True)
     self.declare_parameter("control_mode", "position")
     self.declare_parameter("raw_command_topic", "command_raw")
@@ -133,7 +124,6 @@ class MujocoRos2Node(Node):
     self._command_lock = threading.Lock()
     self._state_lock = threading.Lock()
     self._state_snapshot: Optional[SimState] = None
-    self._latest_command = CommandState(stamp=None)
 
     self.use_viewer = bool(self.get_parameter("use_viewer").value)
     self.publish_joint_states = bool(
@@ -235,6 +225,8 @@ class MujocoRos2Node(Node):
     )
     self.joint_name_to_ctrl_index = self._build_joint_control_map()
     self.last_ctrl = np.zeros(self.actuator_count, dtype=np.float64)
+    self.pending_ctrl: Optional[np.ndarray] = None
+    self.pending_cartesian_target: Optional[PoseStamped] = None
 
     self.end_effector_site_id = mujoco.mj_name2id(
       self.model, mujoco.mjtObj.mjOBJ_SITE, self.end_effector_site_name
@@ -327,9 +319,8 @@ class MujocoRos2Node(Node):
     if self.render_rate_hz > 0.0:
       self.render_period = 1.0 / self.render_rate_hz
     else:
-      self.render_period = 1.0 / 15.0
+      self.render_period = self.publish_period if self._publish_enabled else 0.05
     self.viewer_period = 1.0 / max(1.0, self.viewer_rate_hz)
-    self._write_state_snapshot()
 
     self._start_threads()
 
@@ -451,52 +442,6 @@ class MujocoRos2Node(Node):
       qvel_adrs.append(int(self.model.jnt_dofadr[joint_id]))
     return joint_names, qpos_adrs, qvel_adrs
 
-  def _get_latest_state(self) -> Optional[SimState]:
-    with self._state_lock:
-      return self._state_snapshot
-
-  def _write_state_snapshot(self) -> None:
-    ext_force = self._get_sensor_data_from_array(
-      self.external_force_sensor_id, self.data.sensordata
-    )
-    ext_torque = self._get_sensor_data_from_array(
-      self.external_torque_sensor_id, self.data.sensordata
-    )
-    state = SimState(
-      stamp=self.get_clock().now().to_msg(),
-      sim_time=float(self.data.time),
-      qpos=np.array(self.data.qpos, copy=True),
-      qvel=np.array(self.data.qvel, copy=True),
-      sensordata=np.array(self.data.sensordata, copy=True),
-      site_xpos=np.array(self.data.site_xpos, copy=True),
-      site_xmat=np.array(self.data.site_xmat, copy=True),
-      ext_force=None if ext_force is None else np.array(ext_force, copy=True),
-      ext_torque=None if ext_torque is None else np.array(ext_torque, copy=True),
-    )
-    with self._state_lock:
-      self._state_snapshot = state
-
-  def _get_latest_command(self) -> CommandState:
-    with self._command_lock:
-      return self._latest_command
-
-  def _set_latest_command(self, command: CommandState) -> None:
-    with self._command_lock:
-      self._latest_command = command
-
-  def _copy_state_to_data(self, state: SimState, data: mujoco.MjData) -> None:
-    data.qpos[:] = state.qpos
-    data.qvel[:] = state.qvel
-    mujoco.mj_forward(self.model, data)
-
-  def _qpos_solution_to_ctrl(self, q_solution: np.ndarray) -> np.ndarray:
-    ctrl = np.array(self.last_ctrl, copy=True)
-    for ctrl_index, qpos_adr in enumerate(self.controlled_joint_qpos_adr):
-      if ctrl_index >= ctrl.size or qpos_adr >= q_solution.size:
-        continue
-      ctrl[ctrl_index] = float(q_solution[qpos_adr])
-    return ctrl
-
   def _simulation_loop(self) -> None:
     next_time = time.perf_counter()
     while not self._stop_event.is_set():
@@ -516,14 +461,12 @@ class MujocoRos2Node(Node):
         self.get_logger().info("Viewer closed; disabling viewer sync.")
         self.viewer = None
         return
-      state = self._get_latest_state()
-      if state is not None:
+      with self._data_lock:
         with self.viewer.lock():
-          self._copy_state_to_data(state, self.viewer_data)
           self.viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_CONTACTPOINT] = int(
-            state.sim_time % 2
+            self.data.time % 2
           )
-      self.viewer.sync()
+        self.viewer.sync()
       time.sleep(self.viewer_period)
 
   def _render_loop(self) -> None:
@@ -547,11 +490,9 @@ class MujocoRos2Node(Node):
         time.sleep(self.render_period)
         continue
 
-      state = self._get_latest_state()
-      if state is None:
-        time.sleep(self.render_period)
-        continue
-      self._copy_state_to_data(state, self.render_data)
+      stamp = self.get_clock().now().to_msg()
+      with self._data_lock:
+        mujoco.mj_copyData(self.render_data, self.model, self.data)
 
       for camera_pub in self.camera_publishers:
         if camera_pub.rgb_pub is None and camera_pub.depth_pub is None:
@@ -566,7 +507,7 @@ class MujocoRos2Node(Node):
         )
         frame = RenderedFrame(
           camera_name=camera_pub.name,
-          stamp=state.stamp,
+          stamp=stamp,
           rgb=rgb if camera_pub.rgb_pub is not None else None,
           depth=depth if camera_pub.depth_pub is not None else None,
         )
@@ -670,19 +611,19 @@ class MujocoRos2Node(Node):
         camera_pub.depth_pub.publish(depth_msg)
 
   def _on_cartesian_command(self, msg: PoseStamped) -> None:
-    self._set_latest_command(
-      CommandState(stamp=msg.header.stamp, cartesian_target=msg)
-    )
+    with self._data_lock:
+      self.pending_cartesian_target = msg
 
-  def _get_end_effector_pose(self, state: SimState) -> PoseStamped:
+  def _get_end_effector_pose(self) -> PoseStamped:
     pose = PoseStamped()
     pose.header.frame_id = "world"
 
     if self.end_effector_site_id == -1:
       return pose
 
-    position = state.site_xpos[self.end_effector_site_id]
-    orientation = self._mat_to_quat(state.site_xmat[self.end_effector_site_id])
+    site = self.data.site(self.end_effector_site_id)
+    position = np.asarray(site.xpos, dtype=np.float64)
+    orientation = self._mat_to_quat(np.asarray(site.xmat, dtype=np.float64))
 
     pose.pose.position.x = float(position[0])
     pose.pose.position.y = float(position[1])
@@ -726,31 +667,25 @@ class MujocoRos2Node(Node):
     return (vector / vector_norm) * angle
 
   def _solve_inverse_kinematics(
-    self,
-    target_position: np.ndarray,
-    target_quaternion: np.ndarray,
-    q_init: np.ndarray,
+    self, target_position: np.ndarray, target_quaternion: np.ndarray
   ) -> Optional[np.ndarray]:
     if self.end_effector_site_id == -1:
       return None
 
-    q = np.array(q_init, copy=True)
+    q = np.array(self.data.qpos, copy=True)
     target_position = np.asarray(target_position, dtype=np.float64)
     target_quaternion = np.asarray(target_quaternion, dtype=np.float64)
-    control_qpos_indices = np.asarray(self.controlled_joint_qpos_adr, dtype=np.int32)
     control_dof_indices = np.asarray(self.controlled_joint_qvel_adr, dtype=np.int32)
-    if control_qpos_indices.size == 0 or control_dof_indices.size == 0:
-      return None
 
     jac_pos = np.zeros((3, self.model.nv), dtype=np.float64)
     jac_rot = np.zeros((3, self.model.nv), dtype=np.float64)
     identity = np.eye(6, dtype=np.float64)
 
     for _ in range(self.ik_max_iters):
-      self.ik_data.qpos[:] = q
-      mujoco.mj_forward(self.model, self.ik_data)
+      self.data.qpos[:] = q
+      mujoco.mj_forward(self.model, self.data)
 
-      site = self.ik_data.site(self.end_effector_site_id)
+      site = self.data.site(self.end_effector_site_id)
       current_position = np.asarray(site.xpos, dtype=np.float64)
       current_quaternion = self._mat_to_quat(np.asarray(site.xmat, dtype=np.float64))
 
@@ -762,17 +697,19 @@ class MujocoRos2Node(Node):
         np.linalg.norm(position_error) < self.ik_tolerance
         and np.linalg.norm(orientation_error) < self.ik_tolerance
       ):
+        self.data.qpos[:] = q
+        mujoco.mj_forward(self.model, self.data)
         return q
 
-      mujoco.mj_jacSite(
-        self.model, self.ik_data, jac_pos, jac_rot, self.end_effector_site_id
-      )
+      mujoco.mj_jacSite(self.model, self.data, jac_pos, jac_rot, self.end_effector_site_id)
       jacobian = np.vstack((jac_pos, jac_rot))
       jacobian_reduced = jacobian[:, control_dof_indices]
       lhs = jacobian_reduced @ jacobian_reduced.T + (self.ik_damping**2) * identity
       delta_q = jacobian_reduced.T @ np.linalg.solve(lhs, error)
-      q[control_qpos_indices] = q[control_qpos_indices] + self.ik_step_size * delta_q
+      q[control_dof_indices] = q[control_dof_indices] + self.ik_step_size * delta_q
 
+    self.data.qpos[:] = q
+    mujoco.mj_forward(self.model, self.data)
     return q
 
   def _load_keyframe(self, keyframe_name: str) -> bool:
@@ -937,14 +874,10 @@ class MujocoRos2Node(Node):
       return WrenchStamped
     return Float64MultiArray
 
-  def _get_sensor_data_from_array(
-    self, sensor_id: int, sensordata: np.ndarray
-  ) -> Optional[np.ndarray]:
-    if sensor_id == -1:
-      return None
+  def _get_sensor_data(self, sensor_id: int) -> np.ndarray:
     start_idx = int(self.model.sensor_adr[sensor_id])
     dim = int(self.model.sensor_dim[sensor_id])
-    return sensordata[start_idx : start_idx + dim]
+    return self.data.sensordata[start_idx : start_idx + dim]
 
   def _on_raw_command(self, msg: Float64MultiArray) -> None:
     if not msg.data:
@@ -956,9 +889,8 @@ class MujocoRos2Node(Node):
       self.get_logger().warn(
         "Raw command length mismatch; truncating or padding with zeros."
       )
-    self._set_latest_command(
-      CommandState(stamp=self.get_clock().now().to_msg(), raw_ctrl=ctrl)
-    )
+    with self._data_lock:
+      self.pending_ctrl = ctrl
 
   def _on_joint_command(self, msg: JointState) -> None:
     if not msg.name:
@@ -979,136 +911,151 @@ class MujocoRos2Node(Node):
     if not values:
       return
 
-    joint_target = np.full(self.actuator_count, np.nan, dtype=np.float64)
-    for name, value in zip(msg.name, values):
-      ctrl_index = self.joint_name_to_ctrl_index.get(name)
-      if ctrl_index is None:
-        self.get_logger().warn(f"Joint '{name}' has no actuator control mapping.")
-        continue
-      joint_target[ctrl_index] = float(value)
+    if self.control_mode == "position":
+      with self._data_lock:
+        # 位置控制模式：直接设置关节位置（响应更快）
+        for name, value in zip(msg.name, values):
+          # 查找关节 ID
+          joint_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_JOINT, name
+          )
+          if joint_id < 0:
+            self.get_logger().warn(f"Joint '{name}' not found in model")
+            continue
+          # 获取关节位置在 qpos 数组中的索引
+          qpos_adr = int(self.model.jnt_qposadr[joint_id])
+          # 直接设置关节位置
+          self.data.qpos[qpos_adr] = float(value)
 
-    if not np.any(np.isfinite(joint_target)):
-      return
-    self._set_latest_command(
-      CommandState(stamp=msg.header.stamp, joint_target=joint_target)
-    )
+          # 同时更新控制信号，防止执行器产生反向力矩
+          ctrl_index = self.joint_name_to_ctrl_index.get(name)
+          if ctrl_index is not None:
+            self.data.ctrl[ctrl_index] = float(value)
+            self.last_ctrl[ctrl_index] = float(value)
+
+        # 更新动力学状态（必须调用，否则仿真状态不同步）
+        mujoco.mj_forward(self.model, self.data)
+        self.get_logger().debug(f"Directly set joint positions for: {msg.name}")
+    else:
+      # 速度/力控制模式：使用执行器控制
+      ctrl = np.array(self.last_ctrl, copy=True)
+      for name, value in zip(msg.name, values):
+        ctrl_index = self.joint_name_to_ctrl_index.get(name)
+        if ctrl_index is None:
+          continue
+        ctrl[ctrl_index] = float(value)
+      with self._data_lock:
+        self.pending_ctrl = ctrl
 
   def _step_simulation_once(self) -> None:
-    command = self._get_latest_command()
-    if command.cartesian_target is not None:
-      target = command.cartesian_target
-      target_position = np.array(
-        [
-          target.pose.position.x,
-          target.pose.position.y,
-          target.pose.position.z,
-        ],
-        dtype=np.float64,
-      )
-      target_quaternion = np.array(
-        [
-          target.pose.orientation.w,
-          target.pose.orientation.x,
-          target.pose.orientation.y,
-          target.pose.orientation.z,
-        ],
-        dtype=np.float64,
-      )
-      ik_solution = self._solve_inverse_kinematics(
-        target_position, target_quaternion, self.data.qpos
-      )
-      if ik_solution is not None and self.actuator_count:
-        self.last_ctrl = self._qpos_solution_to_ctrl(ik_solution)
-    elif command.raw_ctrl is not None:
-      self.last_ctrl = np.array(command.raw_ctrl, copy=True)
-    elif command.joint_target is not None:
-      valid = np.isfinite(command.joint_target)
-      self.last_ctrl[valid] = command.joint_target[valid]
+    with self._data_lock:
+      if self.pending_cartesian_target is not None:
+        target = self.pending_cartesian_target
+        target_position = np.array(
+          [
+            target.pose.position.x,
+            target.pose.position.y,
+            target.pose.position.z,
+          ],
+          dtype=np.float64,
+        )
+        target_quaternion = np.array(
+          [
+            target.pose.orientation.w,
+            target.pose.orientation.x,
+            target.pose.orientation.y,
+            target.pose.orientation.z,
+          ],
+          dtype=np.float64,
+        )
+        ik_solution = self._solve_inverse_kinematics(
+          target_position, target_quaternion
+        )
+        if ik_solution is not None and self.actuator_count:
+          self.last_ctrl = np.array(
+            ik_solution[: self.actuator_count], copy=True
+          )
 
-    if self.actuator_count:
-      self.data.ctrl[:] = self.last_ctrl
+      if self.pending_ctrl is not None:
+        self.last_ctrl = self.pending_ctrl
+        self.pending_ctrl = None
+      if self.actuator_count:
+        self.data.ctrl[:] = self.last_ctrl
 
-    steps = max(1, int(round(self.step_period / self.sim_dt)))
-    for _ in range(steps):
-      mujoco.mj_step(self.model, self.data)
-    self._write_state_snapshot()
+      steps = max(1, int(round(self.step_period / self.sim_dt)))
+      for _ in range(steps):
+        mujoco.mj_step(self.model, self.data)
 
   def _publish_outputs_once(self) -> None:
-    state = self._get_latest_state()
-    if state is None:
-      return
-    now = state.stamp
+    now = self.get_clock().now().to_msg()
 
     pose_msg = None
     joint_msg = None
     sensor_messages: List[Tuple[object, object]] = []
     wrench_msg = None
 
-    if self.end_effector_pose_pub is not None:
-      pose_msg = self._get_end_effector_pose(state)
-      pose_msg.header.stamp = now
+    with self._data_lock:
+      if self.end_effector_pose_pub is not None:
+        pose_msg = self._get_end_effector_pose()
+        pose_msg.header.stamp = now
 
-    if self.joint_state_pub is not None:
-      joint_msg = JointState()
-      joint_msg.header.stamp = now
-      joint_msg.name = list(self.joint_names)
-      joint_msg.position = [float(state.qpos[i]) for i in self.joint_qpos_adr]
-      joint_msg.velocity = [float(state.qvel[i]) for i in self.joint_qvel_adr]
+      if self.joint_state_pub is not None:
+        joint_msg = JointState()
+        joint_msg.header.stamp = now
+        joint_msg.name = list(self.joint_names)
+        joint_msg.position = [float(self.data.qpos[i]) for i in self.joint_qpos_adr]
+        joint_msg.velocity = [float(self.data.qvel[i]) for i in self.joint_qvel_adr]
 
-    for sensor_pub in self.sensor_publishers:
-      sensor_values = self._get_sensor_data_from_array(
-        sensor_pub.sensor_id, state.sensordata
-      )
-      if sensor_values is None:
-        continue
-      if sensor_pub.msg_type is Float64MultiArray:
-        msg = Float64MultiArray()
-        msg.data = [float(v) for v in sensor_values]
-      elif sensor_pub.msg_type is PointStamped:
-        msg = PointStamped()
-        msg.header.stamp = now
-        msg.point.x = float(sensor_values[0])
-        msg.point.y = float(sensor_values[1])
-        msg.point.z = float(sensor_values[2])
-      elif sensor_pub.msg_type is QuaternionStamped:
-        msg = QuaternionStamped()
-        msg.header.stamp = now
-        msg.quaternion.x = float(sensor_values[0])
-        msg.quaternion.y = float(sensor_values[1])
-        msg.quaternion.z = float(sensor_values[2])
-        msg.quaternion.w = float(sensor_values[3])
-      elif sensor_pub.msg_type is Vector3Stamped:
-        msg = Vector3Stamped()
-        msg.header.stamp = now
-        msg.vector.x = float(sensor_values[0])
-        msg.vector.y = float(sensor_values[1])
-        msg.vector.z = float(sensor_values[2])
-      elif sensor_pub.msg_type is WrenchStamped:
-        msg = WrenchStamped()
-        msg.header.stamp = now
-        msg.wrench.force.x = float(sensor_values[0])
-        msg.wrench.force.y = float(sensor_values[1])
-        msg.wrench.force.z = float(sensor_values[2])
-        msg.wrench.torque.x = float(sensor_values[3])
-        msg.wrench.torque.y = float(sensor_values[4])
-        msg.wrench.torque.z = float(sensor_values[5])
-      else:
-        continue
-      sensor_messages.append((sensor_pub.publisher, msg))
+      for sensor_pub in self.sensor_publishers:
+        sensor_values = self._get_sensor_data(sensor_pub.sensor_id)
+        if sensor_pub.msg_type is Float64MultiArray:
+          msg = Float64MultiArray()
+          msg.data = [float(v) for v in sensor_values]
+        elif sensor_pub.msg_type is PointStamped:
+          msg = PointStamped()
+          msg.header.stamp = now
+          msg.point.x = float(sensor_values[0])
+          msg.point.y = float(sensor_values[1])
+          msg.point.z = float(sensor_values[2])
+        elif sensor_pub.msg_type is QuaternionStamped:
+          msg = QuaternionStamped()
+          msg.header.stamp = now
+          msg.quaternion.x = float(sensor_values[0])
+          msg.quaternion.y = float(sensor_values[1])
+          msg.quaternion.z = float(sensor_values[2])
+          msg.quaternion.w = float(sensor_values[3])
+        elif sensor_pub.msg_type is Vector3Stamped:
+          msg = Vector3Stamped()
+          msg.header.stamp = now
+          msg.vector.x = float(sensor_values[0])
+          msg.vector.y = float(sensor_values[1])
+          msg.vector.z = float(sensor_values[2])
+        elif sensor_pub.msg_type is WrenchStamped:
+          msg = WrenchStamped()
+          msg.header.stamp = now
+          msg.wrench.force.x = float(sensor_values[0])
+          msg.wrench.force.y = float(sensor_values[1])
+          msg.wrench.force.z = float(sensor_values[2])
+          msg.wrench.torque.x = float(sensor_values[3])
+          msg.wrench.torque.y = float(sensor_values[4])
+          msg.wrench.torque.z = float(sensor_values[5])
+        else:
+          continue
+        sensor_messages.append((sensor_pub.publisher, msg))
 
-    if state.ext_force is not None and state.ext_torque is not None:
-      force = state.ext_force
-      torque = state.ext_torque
-      if force.shape[0] >= 3 and torque.shape[0] >= 3:
-        wrench_msg = WrenchStamped()
-        wrench_msg.header.stamp = now
-        wrench_msg.header.frame_id = self.external_wrench_frame_id
-        wrench_msg.wrench.force.x = -1.0 * float(force[0])
-        wrench_msg.wrench.force.y = -1.0 * float(force[1])
-        wrench_msg.wrench.force.z = -1.0 * float(force[2])
-        wrench_msg.wrench.torque.x = -1.0 * float(torque[0])
-        wrench_msg.wrench.torque.y = -1.0 * float(torque[1])
-        wrench_msg.wrench.torque.z = -1.0 * float(torque[2])
+      if self.external_force_sensor_id != -1 and self.external_torque_sensor_id != -1:
+        force = self._get_sensor_data(self.external_force_sensor_id)
+        torque = self._get_sensor_data(self.external_torque_sensor_id)
+        if force.shape[0] >= 3 and torque.shape[0] >= 3:
+          wrench_msg = WrenchStamped()
+          wrench_msg.header.stamp = now
+          wrench_msg.header.frame_id = self.external_wrench_frame_id
+          wrench_msg.wrench.force.x = -1.0 * float(force[0])
+          wrench_msg.wrench.force.y = -1.0 * float(force[1])
+          wrench_msg.wrench.force.z = -1.0 * float(force[2])
+          wrench_msg.wrench.torque.x = -1.0 * float(torque[0])
+          wrench_msg.wrench.torque.y = -1.0 * float(torque[1])
+          wrench_msg.wrench.torque.z = -1.0 * float(torque[2])
 
     if pose_msg is not None:
       self.end_effector_pose_pub.publish(pose_msg)

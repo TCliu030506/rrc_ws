@@ -276,9 +276,9 @@ void AdmittanceController::compute_admittance()
     return;
   }
 
-  // 虚拟导纳：M*xdd_a + D*xd_a + K*x_a = F_ext + F_ctrl
+  // 虚拟导纳：M*xdd_a + D*xd_a + K*x_a = F_ext - F_ctrl
   Vector6d admittance_virtual_acc = M_a_.inverse() * (
-      wrench_external_ + wrench_control_
+      wrench_external_ - wrench_control_
       - D_a_ * admittance_twist_
       - K_a_ * admittance_displacement_);
 
@@ -524,18 +524,53 @@ void AdmittanceController::wrench_external_callback(
   }
 }
 
-// 控制输入力/力矩回调
+// // 控制输入力/力矩回调
+// void AdmittanceController::wrench_control_callback(
+//   const geometry_msgs::msg::WrenchStamped::SharedPtr msg) {
+//   if (msg->header.frame_id == control_wrench_frame_) {
+//     wrench_control_ << msg->wrench.force.x, msg->wrench.force.y, msg->wrench.force.z,
+//                     msg->wrench.torque.x, msg->wrench.torque.y, msg->wrench.torque.z;
+//   }
+//   else  {
+//     RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 5000,
+//       "wrench_control_callback: frame_id=%s, expected=%s",
+//       msg->header.frame_id.c_str(), control_wrench_frame_.c_str());
+//   }
+// }
+
+// 控制输入力/力矩回调，将力数据变换到控制参考坐标系
 void AdmittanceController::wrench_control_callback(
   const geometry_msgs::msg::WrenchStamped::SharedPtr msg) {
-  if (msg->header.frame_id == control_wrench_frame_) {
-    wrench_control_ << msg->wrench.force.x, msg->wrench.force.y, msg->wrench.force.z,
-                    msg->wrench.torque.x, msg->wrench.torque.y, msg->wrench.torque.z;
+  if (!ft_arm_ready_) {
+    return;
   }
-  else  {
+  
+  Vector6d wrench_source_frame;
+  Vector6d wrench_control_frame;
+  
+  // 读取消息自身坐标系下的力/力矩
+  wrench_source_frame << msg->wrench.force.x, msg->wrench.force.y,
+                  msg->wrench.force.z, msg->wrench.torque.x,
+                  msg->wrench.torque.y, msg->wrench.torque.z;
+  
+  const std::string source_frame = msg->header.frame_id.empty() ? base_frame_ : msg->header.frame_id;
+  
+  // 坐标变换到控制参考坐标系（使用完整6x6伴随矩阵）
+  Matrix6d rotation_control;
+  if (source_frame == base_frame_) {
+    rotation_control.setZero();
+    rotation_control.topLeftCorner(3, 3) = Matrix3d::Identity();
+    rotation_control.bottomRightCorner(3, 3) = Matrix3d::Identity();
+  } else if (!get_wrench_transform(rotation_control, base_frame_, source_frame)) {
     RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 5000,
-      "wrench_control_callback: frame_id=%s, expected=%s",
-      msg->header.frame_id.c_str(), control_wrench_frame_.c_str());
+      "wrench_control_callback: failed to transform from %s to %s",
+      source_frame.c_str(), base_frame_.c_str());
+    return;
   }
+  
+  // 应用坐标变换
+  wrench_control_frame << rotation_control * wrench_source_frame;
+  wrench_control_ = wrench_control_frame;
 }
 
 ///////////////////////////////////////////////////////////////

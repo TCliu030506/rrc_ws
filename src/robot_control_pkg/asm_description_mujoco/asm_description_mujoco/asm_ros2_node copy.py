@@ -1,9 +1,6 @@
 import ast
 import os
-import threading
-import time
 from dataclasses import dataclass
-from queue import Empty, Full, Queue
 from typing import Dict, List, Optional, Sequence, Tuple, Type
 
 import glfw
@@ -19,7 +16,6 @@ from geometry_msgs.msg import (
   Vector3Stamped,
   WrenchStamped,
 )
-from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, JointState
@@ -41,35 +37,6 @@ class CameraPublisher:
   camera: mujoco.MjvCamera
   rgb_pub: Optional[object]
   depth_pub: Optional[object]
-
-
-@dataclass
-class RenderedFrame:
-  camera_name: str
-  stamp: object
-  rgb: Optional[np.ndarray]
-  depth: Optional[np.ndarray]
-
-
-@dataclass
-class SimState:
-  stamp: object
-  sim_time: float
-  qpos: np.ndarray
-  qvel: np.ndarray
-  sensordata: np.ndarray
-  site_xpos: np.ndarray
-  site_xmat: np.ndarray
-  ext_force: Optional[np.ndarray]
-  ext_torque: Optional[np.ndarray]
-
-
-@dataclass
-class CommandState:
-  stamp: object
-  raw_ctrl: Optional[np.ndarray] = None
-  joint_target: Optional[np.ndarray] = None
-  cartesian_target: Optional[PoseStamped] = None
 
 
 class MujocoRos2Node(Node):
@@ -102,15 +69,8 @@ class MujocoRos2Node(Node):
     self.declare_parameter("depth_near", 0.1)
     self.declare_parameter("depth_far", 50.0)
     self.declare_parameter("depth_max_m", 0.0)
-    self.declare_parameter("image_packer_threads", 2)
-    self.declare_parameter("render_queue_size", 2)
-    self.declare_parameter("pack_queue_size", 4)
-    float_descriptor = ParameterDescriptor(dynamic_typing=True)
-    self.declare_parameter("step_rate_hz", 0.0, float_descriptor)
-    self.declare_parameter("publish_rate_hz", 100.0, float_descriptor)
-    self.declare_parameter("render_rate_hz", 15.0, float_descriptor)
-    self.declare_parameter("viewer_rate_hz", 30.0, float_descriptor)
-    self.declare_parameter("render_only_with_subscribers", True)
+    self.declare_parameter("step_rate_hz", 0.0)
+    self.declare_parameter("publish_rate_hz", 50.0)
     self.declare_parameter("control_mode", "position")
     self.declare_parameter("raw_command_topic", "command_raw")
     self.declare_parameter("joint_command_topic", "command_joint")
@@ -124,16 +84,7 @@ class MujocoRos2Node(Node):
     self.get_logger().info(f"Loading MuJoCo model: {model_path}")
     self.model = mujoco.MjModel.from_xml_path(model_path)
     self.data = mujoco.MjData(self.model)
-    self.ik_data = mujoco.MjData(self.model)
-    self.viewer_data = mujoco.MjData(self.model)
     self.sim_dt = float(self.model.opt.timestep)
-
-    self._stop_event = threading.Event()
-    self._threads: List[threading.Thread] = []
-    self._command_lock = threading.Lock()
-    self._state_lock = threading.Lock()
-    self._state_snapshot: Optional[SimState] = None
-    self._latest_command = CommandState(stamp=None)
 
     self.use_viewer = bool(self.get_parameter("use_viewer").value)
     self.publish_joint_states = bool(
@@ -156,18 +107,8 @@ class MujocoRos2Node(Node):
     self.depth_near = float(self.get_parameter("depth_near").value)
     self.depth_far = float(self.get_parameter("depth_far").value)
     self.depth_max_m = float(self.get_parameter("depth_max_m").value)
-    self.image_packer_threads = int(
-      self.get_parameter("image_packer_threads").value
-    )
-    self.render_queue_size = int(self.get_parameter("render_queue_size").value)
-    self.pack_queue_size = int(self.get_parameter("pack_queue_size").value)
     self.step_rate_hz = float(self.get_parameter("step_rate_hz").value)
     self.publish_rate_hz = float(self.get_parameter("publish_rate_hz").value)
-    self.render_rate_hz = float(self.get_parameter("render_rate_hz").value)
-    self.viewer_rate_hz = float(self.get_parameter("viewer_rate_hz").value)
-    self.render_only_with_subscribers = bool(
-      self.get_parameter("render_only_with_subscribers").value
-    )
     self.control_mode = str(self.get_parameter("control_mode").value)
     self.sensor_topic_prefix = str(
       self.get_parameter("sensor_topic_prefix").value
@@ -197,7 +138,7 @@ class MujocoRos2Node(Node):
     self.viewer = None
     if self.use_viewer:
       try:
-        self.viewer = mujoco.viewer.launch_passive(self.model, self.viewer_data)
+        self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
         self.get_logger().info("MuJoCo viewer started.")
       except Exception as exc:
         self.get_logger().error(f"Failed to start viewer: {exc}")
@@ -208,23 +149,9 @@ class MujocoRos2Node(Node):
     self.scene = None
     self.render_context = None
     self.camera_publishers: List[CameraPublisher] = []
-    self.render_data: Optional[mujoco.MjData] = None
-    self._render_queue: Optional[Queue] = None
-    self._pack_queue: Optional[Queue] = None
-    self._camera_pub_by_name: Dict[str, CameraPublisher] = {}
     if self.publish_rgb or self.publish_depth:
       self._init_renderer()
       self.camera_publishers = self._build_camera_publishers()
-      self.render_data = mujoco.MjData(self.model)
-      self._render_queue = Queue(maxsize=max(1, self.render_queue_size))
-      self._pack_queue = Queue(maxsize=max(1, self.pack_queue_size))
-      self._camera_pub_by_name = {
-        publisher.name: publisher for publisher in self.camera_publishers
-      }
-      try:
-        glfw.make_context_current(None)
-      except Exception:
-        pass
 
     self.joint_names, self.joint_qpos_adr, self.joint_qvel_adr = (
       self._build_joint_state_cache()
@@ -235,6 +162,8 @@ class MujocoRos2Node(Node):
     )
     self.joint_name_to_ctrl_index = self._build_joint_control_map()
     self.last_ctrl = np.zeros(self.actuator_count, dtype=np.float64)
+    self.pending_ctrl: Optional[np.ndarray] = None
+    self.pending_cartesian_target: Optional[PoseStamped] = None
 
     self.end_effector_site_id = mujoco.mj_name2id(
       self.model, mujoco.mjtObj.mjOBJ_SITE, self.end_effector_site_name
@@ -318,20 +247,15 @@ class MujocoRos2Node(Node):
     )
 
     self.step_period = self._compute_step_period()
+    self.step_timer = self.create_timer(self.step_period, self._step_simulation)
+
     if self.publish_rate_hz <= 0.0:
       self.publish_period = 0.0
-      self._publish_enabled = False
     else:
       self.publish_period = 1.0 / self.publish_rate_hz
-      self._publish_enabled = True
-    if self.render_rate_hz > 0.0:
-      self.render_period = 1.0 / self.render_rate_hz
-    else:
-      self.render_period = 1.0 / 15.0
-    self.viewer_period = 1.0 / max(1.0, self.viewer_rate_hz)
-    self._write_state_snapshot()
-
-    self._start_threads()
+    self.publish_timer = self.create_timer(
+      self.publish_period, self._publish_outputs
+    )
 
     self.get_logger().info(
       f"Sim dt: {self.sim_dt:.4f}s, step period: {self.step_period:.4f}s"
@@ -347,62 +271,6 @@ class MujocoRos2Node(Node):
       )
       return self.sim_dt
     return requested
-
-  def _start_threads(self) -> None:
-    self._stop_event.clear()
-
-    self._simulation_thread = threading.Thread(
-      target=self._simulation_loop,
-      name="mujoco_sim_thread",
-      daemon=True,
-    )
-    self._simulation_thread.start()
-    self._threads.append(self._simulation_thread)
-
-    if self.viewer is not None:
-      self._viewer_thread = threading.Thread(
-        target=self._viewer_loop,
-        name="mujoco_viewer_thread",
-        daemon=True,
-      )
-      self._viewer_thread.start()
-      self._threads.append(self._viewer_thread)
-
-    if self._publish_enabled:
-      self._publish_thread = threading.Thread(
-        target=self._publish_loop,
-        name="ros2_publish_thread",
-        daemon=True,
-      )
-      self._publish_thread.start()
-      self._threads.append(self._publish_thread)
-
-    if (self.publish_rgb or self.publish_depth) and self._publish_enabled:
-      self._render_thread = threading.Thread(
-        target=self._render_loop,
-        name="camera_render_thread",
-        daemon=True,
-      )
-      self._render_thread.start()
-      self._threads.append(self._render_thread)
-
-      packer_count = max(1, int(self.image_packer_threads))
-      self._packer_threads: List[threading.Thread] = []
-      for idx in range(packer_count):
-        thread = threading.Thread(
-          target=self._image_pack_loop,
-          name=f"image_pack_thread_{idx}",
-          daemon=True,
-        )
-        thread.start()
-        self._packer_threads.append(thread)
-        self._threads.append(thread)
-
-  def _stop_threads(self) -> None:
-    self._stop_event.set()
-    for thread in list(self._threads):
-      if thread.is_alive():
-        thread.join(timeout=1.0)
 
   def _build_joint_state_cache(self) -> Tuple[List[str], List[int], List[int]]:
     joint_names: List[str] = []
@@ -451,238 +319,20 @@ class MujocoRos2Node(Node):
       qvel_adrs.append(int(self.model.jnt_dofadr[joint_id]))
     return joint_names, qpos_adrs, qvel_adrs
 
-  def _get_latest_state(self) -> Optional[SimState]:
-    with self._state_lock:
-      return self._state_snapshot
-
-  def _write_state_snapshot(self) -> None:
-    ext_force = self._get_sensor_data_from_array(
-      self.external_force_sensor_id, self.data.sensordata
-    )
-    ext_torque = self._get_sensor_data_from_array(
-      self.external_torque_sensor_id, self.data.sensordata
-    )
-    state = SimState(
-      stamp=self.get_clock().now().to_msg(),
-      sim_time=float(self.data.time),
-      qpos=np.array(self.data.qpos, copy=True),
-      qvel=np.array(self.data.qvel, copy=True),
-      sensordata=np.array(self.data.sensordata, copy=True),
-      site_xpos=np.array(self.data.site_xpos, copy=True),
-      site_xmat=np.array(self.data.site_xmat, copy=True),
-      ext_force=None if ext_force is None else np.array(ext_force, copy=True),
-      ext_torque=None if ext_torque is None else np.array(ext_torque, copy=True),
-    )
-    with self._state_lock:
-      self._state_snapshot = state
-
-  def _get_latest_command(self) -> CommandState:
-    with self._command_lock:
-      return self._latest_command
-
-  def _set_latest_command(self, command: CommandState) -> None:
-    with self._command_lock:
-      self._latest_command = command
-
-  def _copy_state_to_data(self, state: SimState, data: mujoco.MjData) -> None:
-    data.qpos[:] = state.qpos
-    data.qvel[:] = state.qvel
-    mujoco.mj_forward(self.model, data)
-
-  def _qpos_solution_to_ctrl(self, q_solution: np.ndarray) -> np.ndarray:
-    ctrl = np.array(self.last_ctrl, copy=True)
-    for ctrl_index, qpos_adr in enumerate(self.controlled_joint_qpos_adr):
-      if ctrl_index >= ctrl.size or qpos_adr >= q_solution.size:
-        continue
-      ctrl[ctrl_index] = float(q_solution[qpos_adr])
-    return ctrl
-
-  def _simulation_loop(self) -> None:
-    next_time = time.perf_counter()
-    while not self._stop_event.is_set():
-      self._step_simulation_once()
-      next_time += self.step_period
-      sleep_time = next_time - time.perf_counter()
-      if sleep_time > 0.0:
-        time.sleep(sleep_time)
-      else:
-        next_time = time.perf_counter()
-
-  def _viewer_loop(self) -> None:
-    while not self._stop_event.is_set():
-      if self.viewer is None:
-        return
-      if not self.viewer.is_running():
-        self.get_logger().info("Viewer closed; disabling viewer sync.")
-        self.viewer = None
-        return
-      state = self._get_latest_state()
-      if state is not None:
-        with self.viewer.lock():
-          self._copy_state_to_data(state, self.viewer_data)
-          self.viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_CONTACTPOINT] = int(
-            state.sim_time % 2
-          )
-      self.viewer.sync()
-      time.sleep(self.viewer_period)
-
-  def _render_loop(self) -> None:
-    if self.window is None or self.render_data is None:
-      return
-    try:
-      glfw.make_context_current(self.window)
-    except Exception as exc:
-      self.get_logger().error(f"Failed to bind GL context in render thread: {exc}")
-      return
-
-    next_time = time.perf_counter()
-    while not self._stop_event.is_set():
-      if self._render_queue is None:
-        break
-      if self._render_queue.full():
-        time.sleep(self.render_period)
-        continue
-
-      if self.render_only_with_subscribers and not self._has_camera_subscribers():
-        time.sleep(self.render_period)
-        continue
-
-      state = self._get_latest_state()
-      if state is None:
-        time.sleep(self.render_period)
-        continue
-      self._copy_state_to_data(state, self.render_data)
-
-      for camera_pub in self.camera_publishers:
-        if camera_pub.rgb_pub is None and camera_pub.depth_pub is None:
-          continue
-        if self.render_only_with_subscribers and not self._camera_has_subscribers(camera_pub):
-          continue
-        rgb, depth = self._render_images_raw(
-          camera_pub.camera,
-          self.image_width,
-          self.image_height,
-          self.render_data,
-        )
-        frame = RenderedFrame(
-          camera_name=camera_pub.name,
-          stamp=state.stamp,
-          rgb=rgb if camera_pub.rgb_pub is not None else None,
-          depth=depth if camera_pub.depth_pub is not None else None,
-        )
-        try:
-          self._render_queue.put_nowait(frame)
-        except Full:
-          pass
-
-      next_time += self.render_period
-      sleep_time = next_time - time.perf_counter()
-      if sleep_time > 0.0:
-        time.sleep(sleep_time)
-      else:
-        next_time = time.perf_counter()
-
-    try:
-      glfw.make_context_current(None)
-    except Exception:
-      pass
-
-  def _image_pack_loop(self) -> None:
-    if self._render_queue is None or self._pack_queue is None:
-      return
-    while not self._stop_event.is_set():
-      try:
-        frame: RenderedFrame = self._render_queue.get(timeout=0.1)
-      except Empty:
-        continue
-
-      camera_pub = self._camera_pub_by_name.get(frame.camera_name)
-      if camera_pub is None:
-        continue
-
-      rgb_msg = None
-      if camera_pub.rgb_pub is not None and frame.rgb is not None:
-        rgb_msg = Image()
-        rgb_msg.header.stamp = frame.stamp
-        rgb_msg.height = frame.rgb.shape[0]
-        rgb_msg.width = frame.rgb.shape[1]
-        rgb_msg.encoding = "rgb8"
-        rgb_msg.step = frame.rgb.shape[1] * 3
-        rgb_msg.data = frame.rgb.tobytes()
-
-      depth_msg = None
-      if camera_pub.depth_pub is not None and frame.depth is not None:
-        linear_depth = self._linearize_depth(frame.depth)
-        if self.depth_max_m > 0.0:
-          linear_depth = np.clip(linear_depth, 0.0, self.depth_max_m)
-        depth_msg = Image()
-        depth_msg.header.stamp = frame.stamp
-        depth_msg.height = linear_depth.shape[0]
-        depth_msg.width = linear_depth.shape[1]
-        depth_msg.encoding = "32FC1"
-        depth_msg.step = linear_depth.shape[1] * 4
-        depth_msg.data = linear_depth.astype(np.float32).tobytes()
-
-      if rgb_msg is None and depth_msg is None:
-        continue
-      try:
-        self._pack_queue.put_nowait((camera_pub, rgb_msg, depth_msg))
-      except Full:
-        pass
-
-  def _camera_has_subscribers(self, camera_pub: CameraPublisher) -> bool:
-    if camera_pub.rgb_pub is not None and camera_pub.rgb_pub.get_subscription_count() > 0:
-      return True
-    if camera_pub.depth_pub is not None and camera_pub.depth_pub.get_subscription_count() > 0:
-      return True
-    return False
-
-  def _has_camera_subscribers(self) -> bool:
-    for camera_pub in self.camera_publishers:
-      if self._camera_has_subscribers(camera_pub):
-        return True
-    return False
-
-  def _publish_loop(self) -> None:
-    next_time = time.perf_counter()
-    while not self._stop_event.is_set():
-      if self._publish_enabled:
-        self._publish_outputs_once()
-        self._publish_camera_frames()
-      next_time += self.publish_period
-      sleep_time = next_time - time.perf_counter()
-      if sleep_time > 0.0:
-        time.sleep(sleep_time)
-      else:
-        next_time = time.perf_counter()
-
-  def _publish_camera_frames(self) -> None:
-    if self._pack_queue is None:
-      return
-    while True:
-      try:
-        camera_pub, rgb_msg, depth_msg = self._pack_queue.get_nowait()
-      except Empty:
-        break
-      if rgb_msg is not None and camera_pub.rgb_pub is not None:
-        camera_pub.rgb_pub.publish(rgb_msg)
-      if depth_msg is not None and camera_pub.depth_pub is not None:
-        camera_pub.depth_pub.publish(depth_msg)
-
   def _on_cartesian_command(self, msg: PoseStamped) -> None:
-    self._set_latest_command(
-      CommandState(stamp=msg.header.stamp, cartesian_target=msg)
-    )
+    self.pending_cartesian_target = msg
 
-  def _get_end_effector_pose(self, state: SimState) -> PoseStamped:
+  def _get_end_effector_pose(self) -> PoseStamped:
     pose = PoseStamped()
+    pose.header.stamp = self.get_clock().now().to_msg()
     pose.header.frame_id = "world"
 
     if self.end_effector_site_id == -1:
       return pose
 
-    position = state.site_xpos[self.end_effector_site_id]
-    orientation = self._mat_to_quat(state.site_xmat[self.end_effector_site_id])
+    site = self.data.site(self.end_effector_site_id)
+    position = np.asarray(site.xpos, dtype=np.float64)
+    orientation = self._mat_to_quat(np.asarray(site.xmat, dtype=np.float64))
 
     pose.pose.position.x = float(position[0])
     pose.pose.position.y = float(position[1])
@@ -726,31 +376,25 @@ class MujocoRos2Node(Node):
     return (vector / vector_norm) * angle
 
   def _solve_inverse_kinematics(
-    self,
-    target_position: np.ndarray,
-    target_quaternion: np.ndarray,
-    q_init: np.ndarray,
+    self, target_position: np.ndarray, target_quaternion: np.ndarray
   ) -> Optional[np.ndarray]:
     if self.end_effector_site_id == -1:
       return None
 
-    q = np.array(q_init, copy=True)
+    q = np.array(self.data.qpos, copy=True)
     target_position = np.asarray(target_position, dtype=np.float64)
     target_quaternion = np.asarray(target_quaternion, dtype=np.float64)
-    control_qpos_indices = np.asarray(self.controlled_joint_qpos_adr, dtype=np.int32)
     control_dof_indices = np.asarray(self.controlled_joint_qvel_adr, dtype=np.int32)
-    if control_qpos_indices.size == 0 or control_dof_indices.size == 0:
-      return None
 
     jac_pos = np.zeros((3, self.model.nv), dtype=np.float64)
     jac_rot = np.zeros((3, self.model.nv), dtype=np.float64)
     identity = np.eye(6, dtype=np.float64)
 
     for _ in range(self.ik_max_iters):
-      self.ik_data.qpos[:] = q
-      mujoco.mj_forward(self.model, self.ik_data)
+      self.data.qpos[:] = q
+      mujoco.mj_forward(self.model, self.data)
 
-      site = self.ik_data.site(self.end_effector_site_id)
+      site = self.data.site(self.end_effector_site_id)
       current_position = np.asarray(site.xpos, dtype=np.float64)
       current_quaternion = self._mat_to_quat(np.asarray(site.xmat, dtype=np.float64))
 
@@ -762,17 +406,19 @@ class MujocoRos2Node(Node):
         np.linalg.norm(position_error) < self.ik_tolerance
         and np.linalg.norm(orientation_error) < self.ik_tolerance
       ):
+        self.data.qpos[:] = q
+        mujoco.mj_forward(self.model, self.data)
         return q
 
-      mujoco.mj_jacSite(
-        self.model, self.ik_data, jac_pos, jac_rot, self.end_effector_site_id
-      )
+      mujoco.mj_jacSite(self.model, self.data, jac_pos, jac_rot, self.end_effector_site_id)
       jacobian = np.vstack((jac_pos, jac_rot))
       jacobian_reduced = jacobian[:, control_dof_indices]
       lhs = jacobian_reduced @ jacobian_reduced.T + (self.ik_damping**2) * identity
       delta_q = jacobian_reduced.T @ np.linalg.solve(lhs, error)
-      q[control_qpos_indices] = q[control_qpos_indices] + self.ik_step_size * delta_q
+      q[control_dof_indices] = q[control_dof_indices] + self.ik_step_size * delta_q
 
+    self.data.qpos[:] = q
+    mujoco.mj_forward(self.model, self.data)
     return q
 
   def _load_keyframe(self, keyframe_name: str) -> bool:
@@ -937,14 +583,10 @@ class MujocoRos2Node(Node):
       return WrenchStamped
     return Float64MultiArray
 
-  def _get_sensor_data_from_array(
-    self, sensor_id: int, sensordata: np.ndarray
-  ) -> Optional[np.ndarray]:
-    if sensor_id == -1:
-      return None
+  def _get_sensor_data(self, sensor_id: int) -> np.ndarray:
     start_idx = int(self.model.sensor_adr[sensor_id])
     dim = int(self.model.sensor_dim[sensor_id])
-    return sensordata[start_idx : start_idx + dim]
+    return self.data.sensordata[start_idx : start_idx + dim]
 
   def _on_raw_command(self, msg: Float64MultiArray) -> None:
     if not msg.data:
@@ -956,9 +598,7 @@ class MujocoRos2Node(Node):
       self.get_logger().warn(
         "Raw command length mismatch; truncating or padding with zeros."
       )
-    self._set_latest_command(
-      CommandState(stamp=self.get_clock().now().to_msg(), raw_ctrl=ctrl)
-    )
+    self.pending_ctrl = ctrl
 
   def _on_joint_command(self, msg: JointState) -> None:
     if not msg.name:
@@ -979,24 +619,43 @@ class MujocoRos2Node(Node):
     if not values:
       return
 
-    joint_target = np.full(self.actuator_count, np.nan, dtype=np.float64)
-    for name, value in zip(msg.name, values):
-      ctrl_index = self.joint_name_to_ctrl_index.get(name)
-      if ctrl_index is None:
-        self.get_logger().warn(f"Joint '{name}' has no actuator control mapping.")
-        continue
-      joint_target[ctrl_index] = float(value)
+    if self.control_mode == "position":
+      # 位置控制模式：直接设置关节位置（响应更快）
+      for name, value in zip(msg.name, values):
+        # 查找关节 ID
+        joint_id = mujoco.mj_name2id(
+          self.model, mujoco.mjtObj.mjOBJ_JOINT, name
+        )
+        if joint_id < 0:
+          self.get_logger().warn(f"Joint '{name}' not found in model")
+          continue
+        # 获取关节位置在 qpos 数组中的索引
+        qpos_adr = int(self.model.jnt_qposadr[joint_id])
+        # 直接设置关节位置
+        self.data.qpos[qpos_adr] = float(value)
 
-    if not np.any(np.isfinite(joint_target)):
-      return
-    self._set_latest_command(
-      CommandState(stamp=msg.header.stamp, joint_target=joint_target)
-    )
+        # 同时更新控制信号，防止执行器产生反向力矩
+        ctrl_index = self.joint_name_to_ctrl_index.get(name)
+        if ctrl_index is not None:
+            self.data.ctrl[ctrl_index] = float(value)
+            self.last_ctrl[ctrl_index] = float(value)
+      
+      # 更新动力学状态（必须调用，否则仿真状态不同步）
+      mujoco.mj_forward(self.model, self.data)
+      self.get_logger().debug(f"Directly set joint positions for: {msg.name}")
+    else:
+      # 速度/力控制模式：使用执行器控制
+      ctrl = np.array(self.last_ctrl, copy=True)
+      for name, value in zip(msg.name, values):
+        ctrl_index = self.joint_name_to_ctrl_index.get(name)
+        if ctrl_index is None:
+          continue
+        ctrl[ctrl_index] = float(value)
+      self.pending_ctrl = ctrl
 
-  def _step_simulation_once(self) -> None:
-    command = self._get_latest_command()
-    if command.cartesian_target is not None:
-      target = command.cartesian_target
+  def _step_simulation(self) -> None:
+    if self.pending_cartesian_target is not None:
+      target = self.pending_cartesian_target
       target_position = np.array(
         [
           target.pose.position.x,
@@ -1015,52 +674,50 @@ class MujocoRos2Node(Node):
         dtype=np.float64,
       )
       ik_solution = self._solve_inverse_kinematics(
-        target_position, target_quaternion, self.data.qpos
+        target_position, target_quaternion
       )
       if ik_solution is not None and self.actuator_count:
-        self.last_ctrl = self._qpos_solution_to_ctrl(ik_solution)
-    elif command.raw_ctrl is not None:
-      self.last_ctrl = np.array(command.raw_ctrl, copy=True)
-    elif command.joint_target is not None:
-      valid = np.isfinite(command.joint_target)
-      self.last_ctrl[valid] = command.joint_target[valid]
+        self.last_ctrl = np.array(ik_solution[: self.actuator_count], copy=True)
 
+    if self.pending_ctrl is not None:
+      self.last_ctrl = self.pending_ctrl
+      self.pending_ctrl = None
     if self.actuator_count:
       self.data.ctrl[:] = self.last_ctrl
 
     steps = max(1, int(round(self.step_period / self.sim_dt)))
     for _ in range(steps):
       mujoco.mj_step(self.model, self.data)
-    self._write_state_snapshot()
 
-  def _publish_outputs_once(self) -> None:
-    state = self._get_latest_state()
-    if state is None:
-      return
-    now = state.stamp
+    if self.viewer is not None:
+      if not self.viewer.is_running():
+        self.get_logger().info("Viewer closed; disabling viewer sync.")
+        self.viewer = None
+        return
+      with self.viewer.lock():
+        self.viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_CONTACTPOINT] = int(
+          self.data.time % 2
+        )
+      self.viewer.sync()
 
-    pose_msg = None
-    joint_msg = None
-    sensor_messages: List[Tuple[object, object]] = []
-    wrench_msg = None
+  def _publish_outputs(self) -> None:
+    now = self.get_clock().now().to_msg()
 
     if self.end_effector_pose_pub is not None:
-      pose_msg = self._get_end_effector_pose(state)
+      pose_msg = self._get_end_effector_pose()
       pose_msg.header.stamp = now
+      self.end_effector_pose_pub.publish(pose_msg)
 
     if self.joint_state_pub is not None:
-      joint_msg = JointState()
-      joint_msg.header.stamp = now
-      joint_msg.name = list(self.joint_names)
-      joint_msg.position = [float(state.qpos[i]) for i in self.joint_qpos_adr]
-      joint_msg.velocity = [float(state.qvel[i]) for i in self.joint_qvel_adr]
+      msg = JointState()
+      msg.header.stamp = now
+      msg.name = list(self.joint_names)
+      msg.position = [float(self.data.qpos[i]) for i in self.joint_qpos_adr]
+      msg.velocity = [float(self.data.qvel[i]) for i in self.joint_qvel_adr]
+      self.joint_state_pub.publish(msg)
 
     for sensor_pub in self.sensor_publishers:
-      sensor_values = self._get_sensor_data_from_array(
-        sensor_pub.sensor_id, state.sensordata
-      )
-      if sensor_values is None:
-        continue
+      sensor_values = self._get_sensor_data(sensor_pub.sensor_id)
       if sensor_pub.msg_type is Float64MultiArray:
         msg = Float64MultiArray()
         msg.data = [float(v) for v in sensor_values]
@@ -1094,11 +751,11 @@ class MujocoRos2Node(Node):
         msg.wrench.torque.z = float(sensor_values[5])
       else:
         continue
-      sensor_messages.append((sensor_pub.publisher, msg))
+      sensor_pub.publisher.publish(msg)
 
-    if state.ext_force is not None and state.ext_torque is not None:
-      force = state.ext_force
-      torque = state.ext_torque
+    if self.external_force_sensor_id != -1 and self.external_torque_sensor_id != -1:
+      force = self._get_sensor_data(self.external_force_sensor_id)
+      torque = self._get_sensor_data(self.external_torque_sensor_id)
       if force.shape[0] >= 3 and torque.shape[0] >= 3:
         wrench_msg = WrenchStamped()
         wrench_msg.header.stamp = now
@@ -1109,27 +766,41 @@ class MujocoRos2Node(Node):
         wrench_msg.wrench.torque.x = -1.0 * float(torque[0])
         wrench_msg.wrench.torque.y = -1.0 * float(torque[1])
         wrench_msg.wrench.torque.z = -1.0 * float(torque[2])
+        self.external_wrench_pub.publish(wrench_msg)
 
-    if pose_msg is not None:
-      self.end_effector_pose_pub.publish(pose_msg)
-    if joint_msg is not None:
-      self.joint_state_pub.publish(joint_msg)
-    for publisher, msg in sensor_messages:
-      publisher.publish(msg)
-    if wrench_msg is not None:
-      self.external_wrench_pub.publish(wrench_msg)
+    for camera_pub in self.camera_publishers:
+      if camera_pub.rgb_pub is None and camera_pub.depth_pub is None:
+        continue
 
-  def _render_images_raw(
-    self,
-    camera: mujoco.MjvCamera,
-    width: int,
-    height: int,
-    data: mujoco.MjData,
+      rgb, depth = self._render_images(
+        camera_pub.camera, self.image_width, self.image_height
+      )
+      if camera_pub.rgb_pub is not None:
+        rgb_msg = Image()
+        rgb_msg.header.stamp = now
+        rgb_msg.height = rgb.shape[0]
+        rgb_msg.width = rgb.shape[1]
+        rgb_msg.encoding = "rgb8"
+        rgb_msg.step = rgb.shape[1] * 3
+        rgb_msg.data = rgb.tobytes()
+        camera_pub.rgb_pub.publish(rgb_msg)
+      if camera_pub.depth_pub is not None:
+        depth_msg = Image()
+        depth_msg.header.stamp = now
+        depth_msg.height = depth.shape[0]
+        depth_msg.width = depth.shape[1]
+        depth_msg.encoding = "32FC1"
+        depth_msg.step = depth.shape[1] * 4
+        depth_msg.data = depth.astype(np.float32).tobytes()
+        camera_pub.depth_pub.publish(depth_msg)
+
+  def _render_images(
+    self, camera: mujoco.MjvCamera, width: int, height: int
   ) -> Tuple[np.ndarray, np.ndarray]:
     viewport = mujoco.MjrRect(0, 0, width, height)
     mujoco.mjv_updateScene(
       self.model,
-      data,
+      self.data,
       mujoco.MjvOption(),
       None,
       camera,
@@ -1143,7 +814,10 @@ class MujocoRos2Node(Node):
     rgb = np.flipud(rgb)
     depth = np.flipud(depth)
 
-    return rgb, depth
+    linear_depth = self._linearize_depth(depth)
+    if self.depth_max_m > 0.0:
+      linear_depth = np.clip(linear_depth, 0.0, self.depth_max_m)
+    return rgb, linear_depth
 
   def _linearize_depth(self, depth: np.ndarray) -> np.ndarray:
     near = self.depth_near
@@ -1152,7 +826,6 @@ class MujocoRos2Node(Node):
     return (far * near) / np.maximum(denom, 1e-6)
 
   def destroy_node(self) -> bool:
-    self._stop_threads()
     if self.viewer is not None:
       try:
         self.viewer.close()
