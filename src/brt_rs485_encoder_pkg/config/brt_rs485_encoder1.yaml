@@ -1,0 +1,47 @@
+brt_rs485_encoder_node:
+  ros__parameters:
+    port: /dev/ttyUSB0
+    baudrate: 115200
+    address: 1
+    timeout: 0.2
+    publish_rate_hz: 20.0
+    resolution: 65536
+    sample_time_ms: 100
+    position_sign: 1.0
+    angle_offset_rad: 0.0
+    zero_offset_count: 0
+    reconnect_interval_sec: 2.0
+    dry_run: false
+    verbose: false
+
+    publish_joint_state: true
+    joint_name: brt_encoder1_joint
+    frame_id: ''
+    joint_state_topic: encoder1/joint_state
+    joint_state_position_source: position
+    joint_state_velocity_source: none
+
+    publish_raw_counts: false
+
+    publish_position: false
+    position_topic: encoder1/position
+    position_raw_count_topic: encoder1/position_raw_count
+
+    publish_position2: false
+    position2_topic: encoder1/position2
+    position2_raw_count_topic: encoder1/position2_raw_count
+
+    publish_multiturn: false
+    multiturn_topic: encoder1/multiturn
+    multiturn_raw_count_topic: encoder1/multiturn_raw_count
+
+    publish_turns: false
+    turns_topic: encoder1/turns
+
+    publish_speed16: false
+    speed16_topic: encoder1/speed16
+    speed16_raw_count_topic: encoder1/speed16_raw_count
+
+    publish_speed32: false
+    speed32_topic: encoder1/speed32
+    speed32_raw_count_topic: encoder1/speed32_raw_count
