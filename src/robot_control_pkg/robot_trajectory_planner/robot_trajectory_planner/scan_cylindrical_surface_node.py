@@ -11,6 +11,7 @@
 - 相邻层交替方向，实现圆柱表面的往返覆盖
 """
 
+import ast
 import math
 import time
 from copy import deepcopy
@@ -149,7 +150,9 @@ class ScanCylindricalSurfaceNode(Node):
         self.arc_end_deg = float(self.get_parameter('arc_end_deg').value)
 
         self.orientation_mode = str(self.get_parameter('orientation_mode').value)
-        self.fixed_orientation = self.get_parameter('orientation_xyzw').value
+        self.fixed_orientation = self._parse_orientation_xyzw(
+            self.get_parameter('orientation_xyzw').value
+        )
         self.contact_offset = float(self.get_parameter('contact_offset').value)
 
         self.initial_blend_duration = float(self.get_parameter('initial_blend_duration').value)
@@ -222,6 +225,24 @@ class ScanCylindricalSurfaceNode(Node):
             f'层数={len(self.layers)}, 每圆弧点数={self.arc_points}, '
             f'话题=({topic_pose}, {topic_twist}, {topic_accel})'
         )
+
+    @staticmethod
+    def _parse_orientation_xyzw(value) -> List[float]:
+        if isinstance(value, str):
+            text = value.strip()
+            try:
+                value = ast.literal_eval(text)
+            except (ValueError, SyntaxError):
+                value = [part.strip() for part in text.split(',') if part.strip()]
+
+        if not isinstance(value, (list, tuple)) or len(value) != 4:
+            raise ValueError('orientation_xyzw must be length 4')
+
+        orientation = [float(v) for v in value]
+        norm = math.sqrt(sum(v * v for v in orientation))
+        if norm < 1e-12:
+            raise ValueError('orientation_xyzw quaternion norm is too small')
+        return [v / norm for v in orientation]
 
     @staticmethod
     def _compute_layers(y_start: float, y_end: float, y_step: float) -> List[float]:

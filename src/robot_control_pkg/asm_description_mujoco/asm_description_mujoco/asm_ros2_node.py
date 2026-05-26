@@ -2,9 +2,9 @@ import ast
 import os
 import threading
 import time
-from dataclasses import dataclass
+import traceback
 from queue import Empty, Full, Queue
-from typing import Dict, List, Optional, Sequence, Tuple, Type
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Type
 
 import glfw
 import mujoco
@@ -25,51 +25,16 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, JointState
 from std_msgs.msg import Float64MultiArray
 
-
-@dataclass
-class SensorPublisher:
-  name: str
-  sensor_id: int
-  dim: int
-  msg_type: Type
-  publisher: object
-
-
-@dataclass
-class CameraPublisher:
-  name: str
-  camera: mujoco.MjvCamera
-  rgb_pub: Optional[object]
-  depth_pub: Optional[object]
-
-
-@dataclass
-class RenderedFrame:
-  camera_name: str
-  stamp: object
-  rgb: Optional[np.ndarray]
-  depth: Optional[np.ndarray]
-
-
-@dataclass
-class SimState:
-  stamp: object
-  sim_time: float
-  qpos: np.ndarray
-  qvel: np.ndarray
-  sensordata: np.ndarray
-  site_xpos: np.ndarray
-  site_xmat: np.ndarray
-  ext_force: Optional[np.ndarray]
-  ext_torque: Optional[np.ndarray]
-
-
-@dataclass
-class CommandState:
-  stamp: object
-  raw_ctrl: Optional[np.ndarray] = None
-  joint_target: Optional[np.ndarray] = None
-  cartesian_target: Optional[PoseStamped] = None
+from asm_description_mujoco.command_validation import CommandValidator
+from asm_description_mujoco.ik_solver import DampedLeastSquaresIkSolver
+from asm_description_mujoco.qos_profiles import make_control_qos
+from asm_description_mujoco.sim_types import (
+  CameraPublisher,
+  CommandState,
+  RenderedFrame,
+  SensorPublisher,
+  SimState,
+)
 
 
 class MujocoRos2Node(Node):
@@ -115,6 +80,18 @@ class MujocoRos2Node(Node):
     self.declare_parameter("raw_command_topic", "command_raw")
     self.declare_parameter("joint_command_topic", "command_joint")
     self.declare_parameter("joint_state_topic", "joint_states")
+    self.declare_parameter("control_qos_depth", 10)
+    self.declare_parameter("enable_command_clipping", True)
+    self.declare_parameter("allow_partial_raw_commands", False)
+    self.declare_parameter("command_timeout_sec", 0.0, float_descriptor)
+    self.declare_parameter("world_frame", "world")
+    self.declare_parameter("ik_max_iters", 50)
+    self.declare_parameter("ik_position_tolerance", 1e-4, float_descriptor)
+    self.declare_parameter("ik_orientation_tolerance", 1e-3, float_descriptor)
+    self.declare_parameter("ik_damping", 1e-2, float_descriptor)
+    self.declare_parameter("ik_step_size", 0.5, float_descriptor)
+    self.declare_parameter("ik_max_position_step", 0.05, float_descriptor)
+    self.declare_parameter("ik_max_orientation_step", 0.25, float_descriptor)
     self.declare_parameter("external_wrench_topic", "/wrench_compensated")
     self.declare_parameter("external_wrench_frame_id", "asm_force_sensor_link")
     self.declare_parameter("external_force_sensor_name", "asm_force_sensor_force")
@@ -124,7 +101,6 @@ class MujocoRos2Node(Node):
     self.get_logger().info(f"Loading MuJoCo model: {model_path}")
     self.model = mujoco.MjModel.from_xml_path(model_path)
     self.data = mujoco.MjData(self.model)
-    self.ik_data = mujoco.MjData(self.model)
     self.viewer_data = mujoco.MjData(self.model)
     self.sim_dt = float(self.model.opt.timestep)
 
@@ -169,6 +145,32 @@ class MujocoRos2Node(Node):
       self.get_parameter("render_only_with_subscribers").value
     )
     self.control_mode = str(self.get_parameter("control_mode").value)
+    self.control_qos_depth = int(self.get_parameter("control_qos_depth").value)
+    self.enable_command_clipping = bool(
+      self.get_parameter("enable_command_clipping").value
+    )
+    self.allow_partial_raw_commands = bool(
+      self.get_parameter("allow_partial_raw_commands").value
+    )
+    self.command_timeout_sec = float(
+      self.get_parameter("command_timeout_sec").value
+    )
+    self.world_frame = str(self.get_parameter("world_frame").value)
+    self.ik_max_iters = int(self.get_parameter("ik_max_iters").value)
+    self.ik_position_tolerance = float(
+      self.get_parameter("ik_position_tolerance").value
+    )
+    self.ik_orientation_tolerance = float(
+      self.get_parameter("ik_orientation_tolerance").value
+    )
+    self.ik_damping = float(self.get_parameter("ik_damping").value)
+    self.ik_step_size = float(self.get_parameter("ik_step_size").value)
+    self.ik_max_position_step = float(
+      self.get_parameter("ik_max_position_step").value
+    )
+    self.ik_max_orientation_step = float(
+      self.get_parameter("ik_max_orientation_step").value
+    )
     self.sensor_topic_prefix = str(
       self.get_parameter("sensor_topic_prefix").value
     )
@@ -230,7 +232,7 @@ class MujocoRos2Node(Node):
       self._build_joint_state_cache()
     )
     self.actuator_count = int(self.model.nu)
-    self.controlled_joint_names, self.controlled_joint_qpos_adr, self.controlled_joint_qvel_adr = (
+    self.controlled_joint_names, self.controlled_joint_ids, self.controlled_joint_qpos_adr, self.controlled_joint_qvel_adr = (
       self._build_controlled_joint_cache()
     )
     self.joint_name_to_ctrl_index = self._build_joint_control_map()
@@ -244,10 +246,32 @@ class MujocoRos2Node(Node):
         f"End-effector site '{self.end_effector_site_name}' not found; FK/IK disabled."
       )
 
-    self.ik_max_iters = 20
-    self.ik_tolerance = 1e-4
-    self.ik_damping = 1e-3
-    self.ik_step_size = 0.5
+    self.command_validator = CommandValidator(
+      self.actuator_count,
+      np.asarray(self.model.actuator_ctrllimited, dtype=bool),
+      np.asarray(self.model.actuator_ctrlrange, dtype=np.float64),
+      self.joint_name_to_ctrl_index,
+      self.get_logger(),
+      enable_clipping=self.enable_command_clipping,
+      allow_partial_raw_commands=self.allow_partial_raw_commands,
+      world_frame=self.world_frame,
+    )
+    self.ik_solver = DampedLeastSquaresIkSolver(
+      self.model,
+      self.end_effector_site_id,
+      self.controlled_joint_ids,
+      self.controlled_joint_qpos_adr,
+      self.controlled_joint_qvel_adr,
+      max_iters=self.ik_max_iters,
+      position_tolerance=self.ik_position_tolerance,
+      orientation_tolerance=self.ik_orientation_tolerance,
+      damping=self.ik_damping,
+      step_size=self.ik_step_size,
+      max_position_step=self.ik_max_position_step,
+      max_orientation_step=self.ik_max_orientation_step,
+    )
+    self._ik_warning_active = False
+    self._command_timeout_warning_active = False
 
     keyframe_name = str(self.get_parameter("keyframe_name").value)
     self._load_keyframe(keyframe_name)
@@ -294,12 +318,14 @@ class MujocoRos2Node(Node):
         f"External torque sensor '{self.external_torque_sensor_name}' not found."
       )
 
+    control_qos = make_control_qos(self.control_qos_depth)
+
     raw_command_topic = str(self.get_parameter("raw_command_topic").value)
     self.create_subscription(
       Float64MultiArray,
       raw_command_topic,
       self._on_raw_command,
-      qos_profile_sensor_data,
+      control_qos,
     )
 
     joint_command_topic = str(self.get_parameter("joint_command_topic").value)
@@ -307,14 +333,14 @@ class MujocoRos2Node(Node):
       JointState,
       joint_command_topic,
       self._on_joint_command,
-      qos_profile_sensor_data,
+      control_qos,
     )
 
     self.create_subscription(
       PoseStamped,
       self.cartesian_command_topic,
       self._on_cartesian_command,
-      qos_profile_sensor_data,
+      control_qos,
     )
 
     self.step_period = self._compute_step_period()
@@ -351,57 +377,60 @@ class MujocoRos2Node(Node):
   def _start_threads(self) -> None:
     self._stop_event.clear()
 
-    self._simulation_thread = threading.Thread(
-      target=self._simulation_loop,
-      name="mujoco_sim_thread",
-      daemon=True,
+    self._simulation_thread = self._start_worker_thread(
+      "mujoco_sim_thread", self._simulation_loop
     )
-    self._simulation_thread.start()
-    self._threads.append(self._simulation_thread)
 
     if self.viewer is not None:
-      self._viewer_thread = threading.Thread(
-        target=self._viewer_loop,
-        name="mujoco_viewer_thread",
-        daemon=True,
+      self._viewer_thread = self._start_worker_thread(
+        "mujoco_viewer_thread", self._viewer_loop
       )
-      self._viewer_thread.start()
-      self._threads.append(self._viewer_thread)
 
     if self._publish_enabled:
-      self._publish_thread = threading.Thread(
-        target=self._publish_loop,
-        name="ros2_publish_thread",
-        daemon=True,
+      self._publish_thread = self._start_worker_thread(
+        "ros2_publish_thread", self._publish_loop
       )
-      self._publish_thread.start()
-      self._threads.append(self._publish_thread)
 
     if (self.publish_rgb or self.publish_depth) and self._publish_enabled:
-      self._render_thread = threading.Thread(
-        target=self._render_loop,
-        name="camera_render_thread",
-        daemon=True,
+      self._render_thread = self._start_worker_thread(
+        "camera_render_thread", self._render_loop
       )
-      self._render_thread.start()
-      self._threads.append(self._render_thread)
 
       packer_count = max(1, int(self.image_packer_threads))
       self._packer_threads: List[threading.Thread] = []
       for idx in range(packer_count):
-        thread = threading.Thread(
-          target=self._image_pack_loop,
-          name=f"image_pack_thread_{idx}",
-          daemon=True,
+        thread = self._start_worker_thread(
+          f"image_pack_thread_{idx}", self._image_pack_loop
         )
-        thread.start()
         self._packer_threads.append(thread)
-        self._threads.append(thread)
+
+  def _start_worker_thread(
+    self, name: str, target: Callable[[], None]
+  ) -> threading.Thread:
+    thread = threading.Thread(
+      target=self._worker_thread_main,
+      args=(name, target),
+      name=name,
+      daemon=True,
+    )
+    thread.start()
+    self._threads.append(thread)
+    return thread
+
+  def _worker_thread_main(self, name: str, target: Callable[[], None]) -> None:
+    try:
+      target()
+    except Exception as exc:
+      self.get_logger().error(
+        f"Worker thread '{name}' crashed: {exc}\n{traceback.format_exc()}"
+      )
+      self._stop_event.set()
 
   def _stop_threads(self) -> None:
     self._stop_event.set()
+    current_thread = threading.current_thread()
     for thread in list(self._threads):
-      if thread.is_alive():
+      if thread is not current_thread and thread.is_alive():
         thread.join(timeout=1.0)
 
   def _build_joint_state_cache(self) -> Tuple[List[str], List[int], List[int]]:
@@ -433,8 +462,11 @@ class MujocoRos2Node(Node):
         mapping[joint_name] = i
     return mapping
 
-  def _build_controlled_joint_cache(self) -> Tuple[List[str], List[int], List[int]]:
+  def _build_controlled_joint_cache(
+    self,
+  ) -> Tuple[List[str], List[int], List[int], List[int]]:
     joint_names: List[str] = []
+    joint_ids: List[int] = []
     qpos_adrs: List[int] = []
     qvel_adrs: List[int] = []
     for i in range(self.model.nu):
@@ -447,9 +479,10 @@ class MujocoRos2Node(Node):
       if not joint_name:
         continue
       joint_names.append(joint_name)
+      joint_ids.append(joint_id)
       qpos_adrs.append(int(self.model.jnt_qposadr[joint_id]))
       qvel_adrs.append(int(self.model.jnt_dofadr[joint_id]))
-    return joint_names, qpos_adrs, qvel_adrs
+    return joint_names, joint_ids, qpos_adrs, qvel_adrs
 
   def _get_latest_state(self) -> Optional[SimState]:
     with self._state_lock:
@@ -670,9 +703,17 @@ class MujocoRos2Node(Node):
         camera_pub.depth_pub.publish(depth_msg)
 
   def _on_cartesian_command(self, msg: PoseStamped) -> None:
+    target = self.command_validator.validate_cartesian(msg)
+    if target is None:
+      return
     self._set_latest_command(
-      CommandState(stamp=msg.header.stamp, cartesian_target=msg)
+      CommandState(
+        stamp=target.header.stamp,
+        received_time=time.perf_counter(),
+        cartesian_target=target,
+      )
     )
+    self._command_timeout_warning_active = False
 
   def _get_end_effector_pose(self, state: SimState) -> PoseStamped:
     pose = PoseStamped()
@@ -697,83 +738,6 @@ class MujocoRos2Node(Node):
     quat = np.zeros(4, dtype=np.float64)
     mujoco.mju_mat2Quat(quat, np.asarray(mat, dtype=np.float64))
     return quat
-
-  def _quat_multiply(self, left: np.ndarray, right: np.ndarray) -> np.ndarray:
-    result = np.zeros(4, dtype=np.float64)
-    mujoco.mju_mulQuat(
-      result,
-      np.asarray(left, dtype=np.float64),
-      np.asarray(right, dtype=np.float64),
-    )
-    return result
-
-  def _quat_error(self, target: np.ndarray, current: np.ndarray) -> np.ndarray:
-    target = np.asarray(target, dtype=np.float64)
-    current = np.asarray(current, dtype=np.float64)
-    if np.dot(target, current) < 0.0:
-      target = -target
-
-    current_conj = np.array(
-      [current[0], -current[1], -current[2], -current[3]], dtype=np.float64
-    )
-    quat_error = self._quat_multiply(target, current_conj)
-    vector = quat_error[1:]
-    vector_norm = float(np.linalg.norm(vector))
-    if vector_norm < 1e-12:
-      return np.zeros(3, dtype=np.float64)
-    scalar = float(np.clip(quat_error[0], -1.0, 1.0))
-    angle = 2.0 * np.arctan2(vector_norm, scalar)
-    return (vector / vector_norm) * angle
-
-  def _solve_inverse_kinematics(
-    self,
-    target_position: np.ndarray,
-    target_quaternion: np.ndarray,
-    q_init: np.ndarray,
-  ) -> Optional[np.ndarray]:
-    if self.end_effector_site_id == -1:
-      return None
-
-    q = np.array(q_init, copy=True)
-    target_position = np.asarray(target_position, dtype=np.float64)
-    target_quaternion = np.asarray(target_quaternion, dtype=np.float64)
-    control_qpos_indices = np.asarray(self.controlled_joint_qpos_adr, dtype=np.int32)
-    control_dof_indices = np.asarray(self.controlled_joint_qvel_adr, dtype=np.int32)
-    if control_qpos_indices.size == 0 or control_dof_indices.size == 0:
-      return None
-
-    jac_pos = np.zeros((3, self.model.nv), dtype=np.float64)
-    jac_rot = np.zeros((3, self.model.nv), dtype=np.float64)
-    identity = np.eye(6, dtype=np.float64)
-
-    for _ in range(self.ik_max_iters):
-      self.ik_data.qpos[:] = q
-      mujoco.mj_forward(self.model, self.ik_data)
-
-      site = self.ik_data.site(self.end_effector_site_id)
-      current_position = np.asarray(site.xpos, dtype=np.float64)
-      current_quaternion = self._mat_to_quat(np.asarray(site.xmat, dtype=np.float64))
-
-      position_error = target_position - current_position
-      orientation_error = self._quat_error(target_quaternion, current_quaternion)
-      error = np.concatenate([position_error, orientation_error])
-
-      if (
-        np.linalg.norm(position_error) < self.ik_tolerance
-        and np.linalg.norm(orientation_error) < self.ik_tolerance
-      ):
-        return q
-
-      mujoco.mj_jacSite(
-        self.model, self.ik_data, jac_pos, jac_rot, self.end_effector_site_id
-      )
-      jacobian = np.vstack((jac_pos, jac_rot))
-      jacobian_reduced = jacobian[:, control_dof_indices]
-      lhs = jacobian_reduced @ jacobian_reduced.T + (self.ik_damping**2) * identity
-      delta_q = jacobian_reduced.T @ np.linalg.solve(lhs, error)
-      q[control_qpos_indices] = q[control_qpos_indices] + self.ik_step_size * delta_q
-
-    return q
 
   def _load_keyframe(self, keyframe_name: str) -> bool:
     keyframe_id = mujoco.mj_name2id(
@@ -947,18 +911,17 @@ class MujocoRos2Node(Node):
     return sensordata[start_idx : start_idx + dim]
 
   def _on_raw_command(self, msg: Float64MultiArray) -> None:
-    if not msg.data:
+    ctrl = self.command_validator.validate_raw(msg.data)
+    if ctrl is None:
       return
-    ctrl = np.zeros(self.actuator_count, dtype=np.float64)
-    length = min(len(msg.data), self.actuator_count)
-    ctrl[:length] = np.asarray(msg.data[:length], dtype=np.float64)
-    if len(msg.data) != self.actuator_count:
-      self.get_logger().warn(
-        "Raw command length mismatch; truncating or padding with zeros."
-      )
     self._set_latest_command(
-      CommandState(stamp=self.get_clock().now().to_msg(), raw_ctrl=ctrl)
+      CommandState(
+        stamp=self.get_clock().now().to_msg(),
+        received_time=time.perf_counter(),
+        raw_ctrl=ctrl,
+      )
     )
+    self._command_timeout_warning_active = False
 
   def _on_joint_command(self, msg: JointState) -> None:
     if not msg.name:
@@ -979,22 +942,33 @@ class MujocoRos2Node(Node):
     if not values:
       return
 
-    joint_target = np.full(self.actuator_count, np.nan, dtype=np.float64)
-    for name, value in zip(msg.name, values):
-      ctrl_index = self.joint_name_to_ctrl_index.get(name)
-      if ctrl_index is None:
-        self.get_logger().warn(f"Joint '{name}' has no actuator control mapping.")
-        continue
-      joint_target[ctrl_index] = float(value)
-
-    if not np.any(np.isfinite(joint_target)):
+    joint_target = self.command_validator.validate_joint(msg.name, values)
+    if joint_target is None:
       return
     self._set_latest_command(
-      CommandState(stamp=msg.header.stamp, joint_target=joint_target)
+      CommandState(
+        stamp=msg.header.stamp,
+        received_time=time.perf_counter(),
+        joint_target=joint_target,
+      )
     )
+    self._command_timeout_warning_active = False
+
+  def _command_is_stale(self, command: CommandState) -> bool:
+    if self.command_timeout_sec <= 0.0 or command.received_time <= 0.0:
+      return False
+    return (time.perf_counter() - command.received_time) > self.command_timeout_sec
 
   def _step_simulation_once(self) -> None:
     command = self._get_latest_command()
+    if self._command_is_stale(command):
+      if not self._command_timeout_warning_active:
+        self.get_logger().warn(
+          f"No fresh command received for {self.command_timeout_sec:.3f}s; holding last control target."
+        )
+        self._command_timeout_warning_active = True
+      command = CommandState(stamp=None)
+
     if command.cartesian_target is not None:
       target = command.cartesian_target
       target_position = np.array(
@@ -1014,11 +988,23 @@ class MujocoRos2Node(Node):
         ],
         dtype=np.float64,
       )
-      ik_solution = self._solve_inverse_kinematics(
+      ik_result = self.ik_solver.solve(
         target_position, target_quaternion, self.data.qpos
       )
-      if ik_solution is not None and self.actuator_count:
-        self.last_ctrl = self._qpos_solution_to_ctrl(ik_solution)
+      if ik_result is not None and self.actuator_count:
+        if not ik_result.converged and not self._ik_warning_active:
+          self.get_logger().warn(
+            "IK did not fully converge; using best bounded solution "
+            f"(pos_err={ik_result.position_error_norm:.5f}, "
+            f"ori_err={ik_result.orientation_error_norm:.5f}, "
+            f"iters={ik_result.iterations})."
+          )
+          self._ik_warning_active = True
+        elif ik_result.converged:
+          self._ik_warning_active = False
+        self.last_ctrl = self.command_validator.clip_full_ctrl(
+          self._qpos_solution_to_ctrl(ik_result.qpos)
+        )
     elif command.raw_ctrl is not None:
       self.last_ctrl = np.array(command.raw_ctrl, copy=True)
     elif command.joint_target is not None:

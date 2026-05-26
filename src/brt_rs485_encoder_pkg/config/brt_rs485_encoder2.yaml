@@ -1,14 +1,17 @@
 brt_rs485_encoder_node:
   ros__parameters:
-    port: /dev/ttyUSB1
+    port: ""
+    auto_scan: true
     baudrate: 115200
     address: 2
     timeout: 0.2
-    publish_rate_hz: 20.0
+    publish_rate_hz: 10.0
+    scan_timeout: 0.5
+    scan_interval_sec: 5.0
     resolution: 65536
     sample_time_ms: 100
     position_sign: 1.0
-    angle_offset_rad: 0.0
+    angle_offset_rad: -0.19634954084936207
     zero_offset_count: 0
     reconnect_interval_sec: 2.0
     dry_run: false

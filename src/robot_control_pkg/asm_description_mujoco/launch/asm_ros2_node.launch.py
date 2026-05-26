@@ -42,6 +42,18 @@ def generate_launch_description() -> LaunchDescription:
     raw_command_topic = LaunchConfiguration("raw_command_topic")
     joint_command_topic = LaunchConfiguration("joint_command_topic")
     joint_state_topic = LaunchConfiguration("joint_state_topic")
+    control_qos_depth = LaunchConfiguration("control_qos_depth")
+    enable_command_clipping = LaunchConfiguration("enable_command_clipping")
+    allow_partial_raw_commands = LaunchConfiguration("allow_partial_raw_commands")
+    command_timeout_sec = LaunchConfiguration("command_timeout_sec")
+    world_frame = LaunchConfiguration("world_frame")
+    ik_max_iters = LaunchConfiguration("ik_max_iters")
+    ik_position_tolerance = LaunchConfiguration("ik_position_tolerance")
+    ik_orientation_tolerance = LaunchConfiguration("ik_orientation_tolerance")
+    ik_damping = LaunchConfiguration("ik_damping")
+    ik_step_size = LaunchConfiguration("ik_step_size")
+    ik_max_position_step = LaunchConfiguration("ik_max_position_step")
+    ik_max_orientation_step = LaunchConfiguration("ik_max_orientation_step")
     external_wrench_topic = LaunchConfiguration("external_wrench_topic")
     
     # 添加 TF 相关参数
@@ -182,6 +194,66 @@ def generate_launch_description() -> LaunchDescription:
                 description="Topic for published joint states.",
             ),
             DeclareLaunchArgument(
+                "control_qos_depth",
+                default_value="10",
+                description="Queue depth for reliable control command topics.",
+            ),
+            DeclareLaunchArgument(
+                "enable_command_clipping",
+                default_value="true",
+                description="Whether to clip actuator commands to MuJoCo ctrlrange.",
+            ),
+            DeclareLaunchArgument(
+                "allow_partial_raw_commands",
+                default_value="false",
+                description="Whether raw command arrays may be shorter than actuator count.",
+            ),
+            DeclareLaunchArgument(
+                "command_timeout_sec",
+                default_value="0.0",
+                description="Hold last target after this command timeout; 0 disables timeout.",
+            ),
+            DeclareLaunchArgument(
+                "world_frame",
+                default_value="world",
+                description="World frame assumed for Cartesian command targets.",
+            ),
+            DeclareLaunchArgument(
+                "ik_max_iters",
+                default_value="50",
+                description="Maximum iterations for Cartesian IK.",
+            ),
+            DeclareLaunchArgument(
+                "ik_position_tolerance",
+                default_value="0.0001",
+                description="Cartesian IK position tolerance in meters.",
+            ),
+            DeclareLaunchArgument(
+                "ik_orientation_tolerance",
+                default_value="0.001",
+                description="Cartesian IK orientation tolerance in radians.",
+            ),
+            DeclareLaunchArgument(
+                "ik_damping",
+                default_value="0.01",
+                description="Damping term for damped least-squares IK.",
+            ),
+            DeclareLaunchArgument(
+                "ik_step_size",
+                default_value="0.5",
+                description="IK joint update scale.",
+            ),
+            DeclareLaunchArgument(
+                "ik_max_position_step",
+                default_value="0.05",
+                description="Maximum position error step consumed per IK iteration.",
+            ),
+            DeclareLaunchArgument(
+                "ik_max_orientation_step",
+                default_value="0.25",
+                description="Maximum orientation error step consumed per IK iteration.",
+            ),
+            DeclareLaunchArgument(
                 "external_wrench_topic",
                 default_value="/sensors/wrench",
                 description="Topic for combined external wrench output.",
@@ -249,6 +321,18 @@ def generate_launch_description() -> LaunchDescription:
                         "raw_command_topic": raw_command_topic,
                         "joint_command_topic": joint_command_topic,
                         "joint_state_topic": joint_state_topic,
+                        "control_qos_depth": control_qos_depth,
+                        "enable_command_clipping": enable_command_clipping,
+                        "allow_partial_raw_commands": allow_partial_raw_commands,
+                        "command_timeout_sec": command_timeout_sec,
+                        "world_frame": world_frame,
+                        "ik_max_iters": ik_max_iters,
+                        "ik_position_tolerance": ik_position_tolerance,
+                        "ik_orientation_tolerance": ik_orientation_tolerance,
+                        "ik_damping": ik_damping,
+                        "ik_step_size": ik_step_size,
+                        "ik_max_position_step": ik_max_position_step,
+                        "ik_max_orientation_step": ik_max_orientation_step,
                         "external_wrench_topic": external_wrench_topic,
                     }
                 ],

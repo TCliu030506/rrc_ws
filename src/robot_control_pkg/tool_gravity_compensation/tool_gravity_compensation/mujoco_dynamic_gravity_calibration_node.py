@@ -13,7 +13,22 @@ from sensor_msgs.msg import JointState
 from tf2_ros import Buffer, TransformException, TransformListener
 
 from tool_gravity_compensation.gravity_model import quat_to_rot
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import (
+    QoSDurabilityPolicy,
+    QoSHistoryPolicy,
+    QoSProfile,
+    QoSReliabilityPolicy,
+    qos_profile_sensor_data,
+)
+
+
+def make_control_qos(depth: int = 10) -> QoSProfile:
+    return QoSProfile(
+        history=QoSHistoryPolicy.KEEP_LAST,
+        depth=max(1, int(depth)),
+        reliability=QoSReliabilityPolicy.RELIABLE,
+        durability=QoSDurabilityPolicy.VOLATILE,
+    )
 
 
 class MujocoDynamicGravityCalibrationNode(Node):
@@ -82,7 +97,11 @@ class MujocoDynamicGravityCalibrationNode(Node):
 
         self.create_subscription(JointState, self.joint_states_topic, self._joint_state_cb, qos_profile_sensor_data)
         self.create_subscription(WrenchStamped, self.wrench_topic, self._wrench_cb, 10)
-        self.joint_cmd_pub = self.create_publisher(JointState, self.joint_command_topic, 50)
+        self.joint_cmd_pub = self.create_publisher(
+            JointState,
+            self.joint_command_topic,
+            make_control_qos(10),
+        )
 
         self.get_logger().info(
             'MuJoCo dynamic calibration node ready. '

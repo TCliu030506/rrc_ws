@@ -1,6 +1,21 @@
 import rclpy
 from geometry_msgs.msg import Pose, PoseStamped
 from rclpy.node import Node
+from rclpy.qos import (
+    QoSDurabilityPolicy,
+    QoSHistoryPolicy,
+    QoSProfile,
+    QoSReliabilityPolicy,
+)
+
+
+def make_control_qos(depth: int = 10) -> QoSProfile:
+    return QoSProfile(
+        history=QoSHistoryPolicy.KEEP_LAST,
+        depth=max(1, int(depth)),
+        reliability=QoSReliabilityPolicy.RELIABLE,
+        durability=QoSDurabilityPolicy.VOLATILE,
+    )
 
 
 class PoseToPoseStampedBridge(Node):
@@ -15,7 +30,8 @@ class PoseToPoseStampedBridge(Node):
         output_topic = str(self.get_parameter('output_pose_stamped_topic').value)
         self.frame_id = str(self.get_parameter('frame_id').value)
 
-        self.pub = self.create_publisher(PoseStamped, output_topic, 10)
+        control_qos = make_control_qos(10)
+        self.pub = self.create_publisher(PoseStamped, output_topic, control_qos)
         self.sub = self.create_subscription(Pose, input_topic, self._on_pose, 10)
 
         self.get_logger().info(

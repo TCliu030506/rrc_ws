@@ -16,6 +16,8 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import JointState
 
+from asm_description_mujoco.qos_profiles import make_control_qos
+
 
 JOINT_NAMES: List[str] = [
     'shoulder_pan_joint',
@@ -74,8 +76,9 @@ class KeyboardTeleop(Node):
         super().__init__('asm_keyboard_teleop')
         self._mode = mode
 
-        self._joint_pub = self.create_publisher(JointState, '/command_joint', 10)
-        self._cartesian_pub = self.create_publisher(PoseStamped, '/cartesian_target_pose', 10)
+        control_qos = make_control_qos(10)
+        self._joint_pub = self.create_publisher(JointState, '/command_joint', control_qos)
+        self._cartesian_pub = self.create_publisher(PoseStamped, '/cartesian_target_pose', control_qos)
 
         self._latest_joint_positions: Dict[str, float] = {}
         self._joint_targets = [0.0] * len(JOINT_NAMES)

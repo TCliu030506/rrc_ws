@@ -110,7 +110,7 @@ def generate_launch_description():
         # 5.2 起始过渡参数：机械臂当前位姿 -> 扫查起点
         # initial_blend_duration 控制从当前末端位姿平滑过渡到扫查起点的时长
         DeclareLaunchArgument('current_pose_topic', default_value='/end_effector_pose'),
-        DeclareLaunchArgument('initial_blend_duration', default_value='30.0'),
+        DeclareLaunchArgument('initial_blend_duration', default_value='40.0'),
 
         # 5.3 圆柱扫查几何参数
         DeclareLaunchArgument('scan_center_x', default_value='0.80'),

@@ -37,6 +37,7 @@ setup(
         'console_scripts': [
             'brt_rs485_encoder = brt_rs485_encoder_pkg.brt_rs485_encoder:main',
             'brt_rs485_encoder_node = brt_rs485_encoder_pkg.brt_rs485_encoder_node:main',
+            'reset_zero_client_node = brt_rs485_encoder_pkg.reset_zero_client:main',
         ],
     },
 )

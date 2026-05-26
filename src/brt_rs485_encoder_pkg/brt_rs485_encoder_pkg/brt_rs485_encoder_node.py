@@ -4,7 +4,13 @@
 
 from __future__ import annotations
 
+import errno
+import fcntl
+import glob
 import math
+import os
+import re
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
@@ -14,6 +20,7 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, Int64
+from std_srvs.srv import Trigger
 
 from brt_rs485_encoder_pkg.brt_rs485_encoder import (
     EncoderClient,
@@ -128,7 +135,15 @@ class BrtRs485EncoderNode(Node):
         super().__init__("brt_rs485_encoder_node")
 
         # 串口与 Modbus 通信参数。
-        self.declare_parameter("port", "/dev/ttyUSB0")
+        self.declare_parameter("port", "")
+        self.declare_parameter("auto_scan", True)
+        self.declare_parameter("scan_interval_sec", 5.0)
+        self.declare_parameter("scan_timeout", 0.5)
+        self.declare_parameter("scan_port_globs", ["/dev/ttyUSB*", "/dev/ttyACM*"])
+        # 进程级串口锁：避免双节点同时扫描/打开同一个串口。
+        self.declare_parameter("enable_serial_locks", True)
+        self.declare_parameter("scan_lock_path", "/tmp/brt_rs485_encoder_scan.lock")
+        self.declare_parameter("port_lock_dir", "/tmp/brt_rs485_encoder_port_locks")
         self.declare_parameter("baudrate", 9600)
         self.declare_parameter("address", 1)
         self.declare_parameter("timeout", 0.2)
@@ -155,6 +170,7 @@ class BrtRs485EncoderNode(Node):
         self.declare_parameter("joint_state_topic", "encoder/joint_state")
         self.declare_parameter("joint_state_position_source", "position")
         self.declare_parameter("joint_state_velocity_source", NONE_SOURCE)
+        self.declare_parameter("reset_zero_service", "~/reset_zero")
 
         # 原始计数话题是全局开关；每个读数是否启用由 READ_SPECS 决定。
         self.declare_parameter("publish_raw_counts", True)
@@ -169,13 +185,32 @@ class BrtRs485EncoderNode(Node):
                 )
 
         self.port = str(self.get_parameter("port").value)
+        self.auto_scan = bool(self.get_parameter("auto_scan").value)
         self.baudrate = int(self.get_parameter("baudrate").value)
         self.address = int(self.get_parameter("address").value)
         self.timeout = float(self.get_parameter("timeout").value)
+        self.resolution = int(self.get_parameter("resolution").value)
+
+        # 自动扫描状态。port 为空时会扫描；若固定 port 通信失败，也会清空 port 后重新扫描。
+        self._last_scan_time = 0.0
+        self.scan_interval_sec = float(
+            self.get_parameter("scan_interval_sec").value
+        )
+        self.scan_timeout = float(self.get_parameter("scan_timeout").value)
+        self.scan_port_globs = [
+            str(item) for item in self.get_parameter("scan_port_globs").value
+        ]
+        self.enable_serial_locks = bool(
+            self.get_parameter("enable_serial_locks").value
+        )
+        self.scan_lock_path = str(self.get_parameter("scan_lock_path").value)
+        self.port_lock_dir = str(self.get_parameter("port_lock_dir").value)
+        self._scan_lock_file: Optional[object] = None
+        self._port_lock_file: Optional[object] = None
+        self._locked_port: str = ""
         self.publish_rate_hz = float(
             self.get_parameter("publish_rate_hz").value
         )
-        self.resolution = int(self.get_parameter("resolution").value)
         self.sample_time_ms = int(self.get_parameter("sample_time_ms").value)
         self.position_sign = float(self.get_parameter("position_sign").value)
         self.angle_offset_rad = float(
@@ -250,6 +285,15 @@ class BrtRs485EncoderNode(Node):
         self.client: Optional[EncoderClient] = None
         self._next_reconnect_time = 0.0
         self._last_error_log_time = 0.0
+        self._client_io_lock = threading.Lock()
+        self.reset_zero_service_name = str(
+            self.get_parameter("reset_zero_service").value
+        )
+        self.reset_zero_service = self.create_service(
+            Trigger,
+            self.reset_zero_service_name,
+            self._handle_reset_zero,
+        )
 
         # 如果同时启用很多读数，一个 timer 周期会连续发多条 Modbus 请求。
         # 这里用最坏超时时间做提醒，帮助发现 publish_rate_hz 配得过高的情况。
@@ -272,6 +316,157 @@ class BrtRs485EncoderNode(Node):
             f"Read dependencies: {self.read_dependency_reasons}"
         )
 
+    def _candidate_serial_ports(self) -> list[str]:
+        """Return existing serial ports ordered deterministically and deduplicated."""
+        ports: list[str] = []
+        seen_realpaths: set[str] = set()
+        for pattern in self.scan_port_globs:
+            for port in sorted(glob.glob(pattern)):
+                realpath = os.path.realpath(port)
+                if realpath in seen_realpaths:
+                    continue
+                seen_realpaths.add(realpath)
+                ports.append(port)
+        return ports
+
+    def _lock_path_for_port(self, port: str) -> str:
+        """Return a stable lock-file path for one serial port."""
+        realpath = os.path.realpath(port)
+        safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", realpath.strip("/"))
+        return os.path.join(self.port_lock_dir, f"{safe_name}.lock")
+
+    def _try_lock_file(self, path: str, *, blocking: bool) -> Optional[object]:
+        """Acquire an advisory inter-process file lock and return its file object."""
+        if not self.enable_serial_locks:
+            return None
+
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        lock_file = open(path, "a+")
+        flags = fcntl.LOCK_EX
+        if not blocking:
+            flags |= fcntl.LOCK_NB
+        try:
+            fcntl.flock(lock_file.fileno(), flags)
+        except OSError as exc:
+            lock_file.close()
+            if not blocking and exc.errno in (errno.EACCES, errno.EAGAIN):
+                return None
+            raise
+        return lock_file
+
+    def _unlock_file(self, lock_file: Optional[object]) -> None:
+        if lock_file is None:
+            return
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+        finally:
+            lock_file.close()
+
+    def _acquire_scan_lock(self) -> Optional[object]:
+        return self._try_lock_file(self.scan_lock_path, blocking=True)
+
+    def _try_acquire_port_lock(
+        self,
+        port: str,
+        *,
+        blocking: bool = False,
+    ) -> Optional[object]:
+        return self._try_lock_file(
+            self._lock_path_for_port(port),
+            blocking=blocking,
+        )
+
+    def _claim_port_lock(self, port: str) -> bool:
+        """Hold this port lock for the lifetime of the opened polling client."""
+        if not self.enable_serial_locks:
+            self._locked_port = port
+            return True
+        if self._port_lock_file is not None and self._locked_port == port:
+            return True
+        self._release_port_lock()
+        lock_file = self._try_acquire_port_lock(port, blocking=False)
+        if lock_file is None:
+            return False
+        self._port_lock_file = lock_file
+        self._locked_port = port
+        return True
+
+    def _release_port_lock(self) -> None:
+        self._unlock_file(self._port_lock_file)
+        self._port_lock_file = None
+        self._locked_port = ""
+
+    def _claim_port_if_matching_address(self, port: str) -> bool:
+        """Probe one port and keep its lock if this node owns that encoder."""
+        if not self._claim_port_lock(port):
+            self.get_logger().debug(
+                f"Skip locked serial port during scan: {port}"
+            )
+            return False
+
+        client = EncoderClient(
+            port,
+            baudrate=self.baudrate,
+            address=self.address,
+            timeout=self.scan_timeout,
+            dry_run=False,
+            verbose=self.verbose,
+        )
+        try:
+            client.open()
+            result = self._read_encoder(client, self.active_read_kinds[0])
+            if result.get("raw_value") is not None:
+                return True
+            self._release_port_lock()
+            return False
+        except Exception:
+            self._release_port_lock()
+            raise
+        finally:
+            client.close()
+
+    def _find_encoder_port(self) -> str:
+        """自动扫描串口，找到能响应当前 address 的编码器。"""
+        self.get_logger().info(
+            f"Auto-scanning for encoder with address {self.address}..."
+        )
+
+        scan_lock = self._acquire_scan_lock()
+        try:
+            serial_ports = self._candidate_serial_ports()
+            if not serial_ports:
+                self.get_logger().warn(
+                    f"No serial ports found by scan_port_globs={self.scan_port_globs}"
+                )
+                return ""
+
+            self.get_logger().info(
+                f"Found {len(serial_ports)} candidate serial ports: {serial_ports}"
+            )
+
+            for port in serial_ports:
+                try:
+                    if self._claim_port_if_matching_address(port):
+                        self.get_logger().info(
+                            f"Found encoder address {self.address} on port {port}"
+                        )
+                        return port
+                    self.get_logger().debug(
+                        f"Port {port} replied without a usable raw_value, "
+                        "is locked by another node, or is not the target; trying next."
+                    )
+                except (EncoderError, TimeoutError, OSError) as exc:
+                    self.get_logger().debug(
+                        f"Port {port} is not encoder address {self.address}: {exc}"
+                    )
+                except Exception as exc:
+                    self.get_logger().debug(f"Failed to probe {port}: {exc}")
+                time.sleep(0.02)
+
+            return ""
+        finally:
+            self._unlock_file(scan_lock)
+
     def _validate_parameters(self) -> None:
         if self.publish_rate_hz <= 0.0:
             raise ValueError("publish_rate_hz must be > 0")
@@ -283,10 +478,22 @@ class BrtRs485EncoderNode(Node):
             raise ValueError("sample_time_ms must be > 0")
         if self.timeout <= 0.0:
             raise ValueError("timeout must be > 0")
+        if self.scan_timeout <= 0.0:
+            raise ValueError("scan_timeout must be > 0")
+        if self.scan_interval_sec < 0.0:
+            raise ValueError("scan_interval_sec must be >= 0")
+        if not self.scan_port_globs:
+            raise ValueError("scan_port_globs must not be empty")
+        if self.enable_serial_locks:
+            if not self.scan_lock_path:
+                raise ValueError("scan_lock_path must not be empty")
+            if not self.port_lock_dir:
+                raise ValueError("port_lock_dir must not be empty")
         if self.reconnect_interval_sec < 0.0:
             raise ValueError("reconnect_interval_sec must be >= 0")
-        if not self.dry_run and not self.port:
-            raise ValueError("port must be set unless dry_run is true")
+        # auto_scan 模式下允许 port 为空，会在运行时动态扫描
+        if not self.dry_run and not self.port and not self.auto_scan:
+            raise ValueError("port must be set unless dry_run is true or auto_scan is enabled")
         if self.joint_state_position_source not in POSITION_KINDS | {NONE_SOURCE}:
             raise ValueError(
                 "joint_state_position_source must be one of: "
@@ -346,6 +553,27 @@ class BrtRs485EncoderNode(Node):
         return Float64
 
     def _ensure_client(self) -> Optional[EncoderClient]:
+        # 如果启用自动扫描且端口未设置，按 address 查找实际串口。
+        # 找到端口后不再等下一个 timer 周期，立即尝试加端口锁并打开，
+        # 尽量缩短“扫描成功但端口尚未被本节点认领”的竞争窗口。
+        if self.auto_scan and not self.port:
+            now = time.monotonic()
+            if now - self._last_scan_time < self.scan_interval_sec:
+                return None
+
+            self._last_scan_time = now
+            found_port = self._find_encoder_port()
+            if found_port:
+                self.port = found_port
+                self.get_logger().info(
+                    f"Auto-scan succeeded, using port: {self.port}"
+                )
+            else:
+                self.get_logger().warn(
+                    f"Auto-scan failed to find encoder address {self.address}"
+                )
+                return None
+
         # 串口已经打开时直接复用，避免每个 timer 周期反复 open/close。
         if self.client is not None:
             return self.client
@@ -355,9 +583,20 @@ class BrtRs485EncoderNode(Node):
         if now < self._next_reconnect_time:
             return None
 
+        attempted_port = self.port
+        if not self._claim_port_lock(attempted_port):
+            self._next_reconnect_time = now + self.reconnect_interval_sec
+            if self.auto_scan:
+                self.port = ""
+            self._log_error_throttled(
+                "Serial port is already locked by another encoder node: "
+                f"{attempted_port}"
+            )
+            return None
+
         # EncoderClient 封装了 Modbus RTU 帧构造、CRC 校验和寄存器解析。
         client = EncoderClient(
-            self.port,
+            attempted_port,
             baudrate=self.baudrate,
             address=self.address,
             timeout=self.timeout,
@@ -368,7 +607,10 @@ class BrtRs485EncoderNode(Node):
             client.open()
         except Exception as exc:
             client.close()
+            self._release_port_lock()
             self._next_reconnect_time = now + self.reconnect_interval_sec
+            if self.auto_scan:
+                self.port = ""
             self._log_error_throttled(f"Failed to open encoder: {exc}")
             return None
 
@@ -376,37 +618,75 @@ class BrtRs485EncoderNode(Node):
         self.get_logger().info("Encoder serial connection opened.")
         return self.client
 
-    def _close_client(self) -> None:
+    def _close_client(self, *, forget_port: bool = False) -> None:
         # 读写异常后关闭串口，下个重连窗口再重新 open。
         if self.client is not None:
             self.client.close()
             self.client = None
+        self._release_port_lock()
+        if forget_port:
+            self.port = ""
         self._next_reconnect_time = (
             time.monotonic() + self.reconnect_interval_sec
         )
 
     def _on_timer(self) -> None:
-        client = self._ensure_client()
-        if client is None:
-            return
+        with self._client_io_lock:
+            client = self._ensure_client()
+            if client is None:
+                return
 
-        try:
-            # 一个周期内顺序读取所有 active_read_kinds。
-            # RS485 是半双工总线，顺序请求比并发请求更稳妥。
-            samples = self._read_samples(client)
-        except (EncoderError, TimeoutError, OSError) as exc:
-            self._close_client()
-            self._log_error_throttled(f"Encoder read failed: {exc}")
-            return
-        except Exception as exc:
-            self._close_client()
-            self._log_error_throttled(f"Unexpected encoder error: {exc}")
-            return
+            try:
+                # 一个周期内顺序读取所有 active_read_kinds。
+                # RS485 是半双工总线，顺序请求比并发请求更稳妥。
+                samples = self._read_samples(client)
+            except (EncoderError, TimeoutError, OSError) as exc:
+                self._close_client(forget_port=self.auto_scan)
+                self._log_error_throttled(f"Encoder read failed: {exc}")
+                return
+            except Exception as exc:
+                self._close_client(forget_port=self.auto_scan)
+                self._log_error_throttled(f"Unexpected encoder error: {exc}")
+                return
 
         stamp = self.get_clock().now().to_msg()
         # 标量话题和 JointState 使用同一批样本，避免同周期内重复读寄存器。
         self._publish_value_topics(samples)
         self._publish_joint_state(samples, stamp)
+
+    def _handle_reset_zero(
+        self,
+        request: Trigger.Request,
+        response: Trigger.Response,
+    ) -> Trigger.Response:
+        del request
+        with self._client_io_lock:
+            client = self._ensure_client()
+            if client is None:
+                response.success = False
+                response.message = (
+                    f"Encoder address {self.address} is not connected."
+                )
+                return response
+
+            try:
+                client.zero()
+            except (EncoderError, TimeoutError, OSError) as exc:
+                self._close_client(forget_port=self.auto_scan)
+                response.success = False
+                response.message = f"Failed to reset encoder zero: {exc}"
+                return response
+            except Exception as exc:
+                self._close_client(forget_port=self.auto_scan)
+                response.success = False
+                response.message = f"Unexpected reset-zero error: {exc}"
+                return response
+
+        response.success = True
+        response.message = (
+            f"Reset zero succeeded for encoder address {self.address}."
+        )
+        return response
 
     def _read_samples(
         self,
@@ -557,6 +837,7 @@ class BrtRs485EncoderNode(Node):
 
     def destroy_node(self) -> bool:
         self._close_client()
+        self._release_port_lock()
         return super().destroy_node()
 
 

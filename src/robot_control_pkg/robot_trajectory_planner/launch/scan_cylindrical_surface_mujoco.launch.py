@@ -9,6 +9,8 @@ def generate_launch_description():
     topic_desired_twist = LaunchConfiguration('topic_desired_twist')
     topic_desired_accel = LaunchConfiguration('topic_desired_accel')
     current_pose_topic = LaunchConfiguration('current_pose_topic')
+    orientation_xyzw = LaunchConfiguration('orientation_xyzw')
+    contact_offset = LaunchConfiguration('contact_offset')
 
     return LaunchDescription([
         DeclareLaunchArgument('topic_desired_pose', default_value='/scan/desired_pose'),
@@ -27,6 +29,8 @@ def generate_launch_description():
         DeclareLaunchArgument('arc_start_deg', default_value='170.0'),
         DeclareLaunchArgument('arc_end_deg', default_value='190.0'),
         DeclareLaunchArgument('orientation_mode', default_value='normal'), # options: 'fixed', 'normal'
+        DeclareLaunchArgument('orientation_xyzw', default_value='[0.0, 0.7071, 0.0, 0.7071]'),
+        DeclareLaunchArgument('contact_offset', default_value='0.0'),
         DeclareLaunchArgument('y_transition_duration', default_value='2.0'),
 
         Node(
@@ -51,6 +55,8 @@ def generate_launch_description():
                 'arc_start_deg': LaunchConfiguration('arc_start_deg'),
                 'arc_end_deg': LaunchConfiguration('arc_end_deg'),
                 'orientation_mode': LaunchConfiguration('orientation_mode'),
+                'orientation_xyzw': orientation_xyzw,
+                'contact_offset': contact_offset,
                 'y_transition_duration': LaunchConfiguration('y_transition_duration'),
             }],
         ),
