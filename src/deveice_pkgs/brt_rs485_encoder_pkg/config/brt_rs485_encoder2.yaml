@@ -1,6 +1,6 @@
 brt_rs485_encoder_node:
   ros__parameters:
-    port: "/dev/ttyUSB1"
+    port: "/dev/ttyUSB2"
     auto_scan: false
     baudrate: 115200
     address: 2
