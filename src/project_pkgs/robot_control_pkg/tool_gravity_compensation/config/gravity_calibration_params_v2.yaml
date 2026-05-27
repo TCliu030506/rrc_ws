@@ -1,0 +1,9 @@
+gravity_calibration_node:
+  ros__parameters:
+    wrench_topic: /external_force_torque_wrench
+    world_frame: base
+    sensor_frame: asm_force_sensor_link
+    gravity_norm: 9.81
+    auto_collect: false
+    sample_period_sec: 0.05
+    output_file: /home/liutiancheng/Lab_WS/rrc_ws/src/project_pkgs/robot_control_pkg/tool_gravity_compensation/config/tool_gravity_calibration.json

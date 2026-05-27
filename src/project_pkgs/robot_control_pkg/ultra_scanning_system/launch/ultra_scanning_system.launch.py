@@ -92,11 +92,6 @@ def generate_launch_description():
                 'wrench_in_topic': RAW_WRENCH_TOPIC,
                 'wrench_out_topic': COMPENSATED_WRENCH_TOPIC,
                 'gravity_wrench_topic': GRAVITY_WRENCH_TOPIC,
-                'calibration_file': PathJoinSubstitution([
-                    FindPackageShare('tool_gravity_compensation'),
-                    'config',
-                    'tool_gravity_calibration.json',
-                ]),
             },
         ],
     )

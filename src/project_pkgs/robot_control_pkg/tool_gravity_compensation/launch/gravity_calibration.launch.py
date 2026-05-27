@@ -6,7 +6,7 @@ import os
 
 def generate_launch_description():
     pkg_share = get_package_share_directory('tool_gravity_compensation')
-    params = os.path.join(pkg_share, 'config', 'gravity_calibration_params.yaml')
+    params = os.path.join(pkg_share, 'config', 'gravity_calibration_params_v2.yaml')
 
     from launch.actions import IncludeLaunchDescription
     from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -33,7 +33,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        ur_driver_launch,
+        # ur_driver_launch,
         Node(
             package='force_sensor',
             executable='force_sensor_axis_6',
@@ -48,11 +48,11 @@ def generate_launch_description():
                 'auto_zero': False,
             }],
         ),
-        Node(
-            package='robot_admittance_control',
-            executable='flange_to_sensor_static_tf',
-            name='flange_to_sensor_static_tf'
-        ),
+        # Node(
+        #     package='robot_admittance_control',
+        #     executable='flange_to_sensor_static_tf',
+        #     name='flange_to_sensor_static_tf'
+        # ),
         Node(
             package='tool_gravity_compensation',
             executable='gravity_calibration_node',

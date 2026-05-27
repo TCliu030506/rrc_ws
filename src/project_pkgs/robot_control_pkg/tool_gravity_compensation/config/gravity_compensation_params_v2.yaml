@@ -6,4 +6,4 @@ gravity_compensation_node:
     world_frame: base
     sensor_frame: asm_force_sensor_link
     gravity_norm: 9.81
-    calibration_file: /home/liutiancheng/Lab_WS/rrc_ws/src/robot_control_pkg/tool_gravity_compensation/config/tool_gravity_calibration.json
+    calibration_file: /home/liutiancheng/Lab_WS/rrc_ws/src/project_pkgs/robot_control_pkg/tool_gravity_compensation/config/tool_gravity_calibration.json
