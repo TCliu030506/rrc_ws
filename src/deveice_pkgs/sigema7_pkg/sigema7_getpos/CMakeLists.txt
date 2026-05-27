@@ -78,7 +78,7 @@ install(DIRECTORY include/
 
 # 导出头文件路径
 ament_export_include_directories(include)
-ament_export_libraries(libdhd libdrd)
+ament_export_libraries(dhd drd)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

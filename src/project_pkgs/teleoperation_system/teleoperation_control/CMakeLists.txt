@@ -90,20 +90,17 @@ target_link_libraries(exp_task_invest_world ${pf_control_LIBRARIES} ${pf_kinemat
 
 
 
-# 获取 sigema7_getpos 的 install 路径
+# 链接 sigema7_getpos 导出的静态库
 target_link_libraries(sigema7_getpos
-  ${CMAKE_INSTALL_PREFIX}/../sigema7_getpos/lib/libdhd.a
-  ${CMAKE_INSTALL_PREFIX}/../sigema7_getpos/lib/libdrd.a
+  ${sigema7_getpos_LIBRARIES}
   libusb-1.0.so
 )
 target_link_libraries(sigema7_control
-  ${CMAKE_INSTALL_PREFIX}/../sigema7_getpos/lib/libdhd.a
-  ${CMAKE_INSTALL_PREFIX}/../sigema7_getpos/lib/libdrd.a
+  ${sigema7_getpos_LIBRARIES}
   libusb-1.0.so
 )
 target_link_libraries(sigema7_getpos_old
-  ${CMAKE_INSTALL_PREFIX}/../sigema7_getpos/lib/libdhd.a
-  ${CMAKE_INSTALL_PREFIX}/../sigema7_getpos/lib/libdrd.a
+  ${sigema7_getpos_LIBRARIES}
   libusb-1.0.so
 )
 
