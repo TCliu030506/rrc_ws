@@ -18,7 +18,7 @@ def main(args=None):
     _initial_pose = ur.get_tcp_pose()
     print("初始位姿: \n", _initial_pose)
 
-    _initial_pose[1] -= 0.05
+    # _initial_pose[1] -= 0.05
     ur.sevol_l(_initial_pose)
 
     rclpy.shutdown() 

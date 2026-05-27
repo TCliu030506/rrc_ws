@@ -21,10 +21,10 @@ class URCONTROL:
         # self.rtde_c.setTcp([0.0, 0.0339, 0.208, 0.0, 0.0, 0.0])
         # # Set TCP offset if needed（LZH-平动）
         # self.rtde_c.setTcp([0.0, 0.0, 0.22, 0.0, 0.0, 0.0])
-        # Set TCP offset if needed（LZH-旋转）
-        self.rtde_c.setTcp([0.0, 0.0, 0.60, 0.0, 0.0, 0.0])
-        # # Set TCP offset if needed（默认测试）
-        # self.rtde_c.setTcp([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        # # Set TCP offset if needed（LZH-旋转）
+        # self.rtde_c.setTcp([0.0, 0.0, 0.60, 0.0, 0.0, 0.0])
+        # Set TCP offset if needed（默认测试）
+        self.rtde_c.setTcp([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
         # Define servoL parameters
         self.speed = 0.15  # m/s

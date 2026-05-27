@@ -27,6 +27,7 @@ setup(
             'teleoperation_feedback_node = robot_trajectory_planner.teleoperation_feedback_node:main',
             'scan_raster_trajectory_node = robot_trajectory_planner.scan_raster_trajectory_node:main',
             'scan_cylindrical_surface_node = robot_trajectory_planner.scan_cylindrical_surface_node:main',
+            'current_pose_hold_node = robot_trajectory_planner.current_pose_hold_node:main',
         ],
     },
 )
