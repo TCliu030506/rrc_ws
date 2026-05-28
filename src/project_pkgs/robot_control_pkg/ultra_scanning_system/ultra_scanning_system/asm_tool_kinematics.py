@@ -77,7 +77,8 @@ def default_static_transforms(
             "asm_force_sensor_link",
             "asm_tool_base_link",
             (0.0, 0.0, 0.0095),
-            IDENTITY_QUAT_XYZW,
+            # IDENTITY_QUAT_XYZW,
+            mujoco_quat_wxyz_to_ros_xyzw((0.0, 0.0, 0.0, -1.0)),
         ),
         TransformSpec(
             "asm_tool_link2",

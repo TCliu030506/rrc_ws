@@ -16,6 +16,11 @@ from std_msgs.msg import Float64MultiArray
 import rtde_control
 import rtde_receive
 
+try:
+    from scipy.spatial.transform import Rotation
+except ImportError:
+    Rotation = None
+
 
 class URServoLPoseControllerNode(Node):
     def __init__(self):
@@ -120,6 +125,77 @@ class URServoLPoseControllerNode(Node):
 
         return [ax * angle, ay * angle, az * angle]
 
+    @staticmethod
+    def _rotvec_error(actual_rotvec, target_rotvec) -> float:
+        if Rotation is not None:
+            actual_rot = Rotation.from_rotvec(actual_rotvec)
+            target_rot = Rotation.from_rotvec(target_rotvec)
+            return float((target_rot * actual_rot.inv()).magnitude())
+
+        return URServoLPoseControllerNode._rotvec_error_without_scipy(
+            actual_rotvec,
+            target_rotvec,
+        )
+
+    @staticmethod
+    def _rotvec_error_without_scipy(actual_rotvec, target_rotvec) -> float:
+        def rotvec_to_quat(rotvec):
+            angle = math.sqrt(
+                rotvec[0] * rotvec[0]
+                + rotvec[1] * rotvec[1]
+                + rotvec[2] * rotvec[2]
+            )
+            if angle < 1e-12:
+                return (0.0, 0.0, 0.0, 1.0)
+            scale = math.sin(angle * 0.5) / angle
+            return (
+                rotvec[0] * scale,
+                rotvec[1] * scale,
+                rotvec[2] * scale,
+                math.cos(angle * 0.5),
+            )
+
+        def multiply_quat(lhs, rhs):
+            lx, ly, lz, lw = lhs
+            rx, ry, rz, rw = rhs
+            return (
+                lw * rx + lx * rw + ly * rz - lz * ry,
+                lw * ry - lx * rz + ly * rw + lz * rx,
+                lw * rz + lx * ry - ly * rx + lz * rw,
+                lw * rw - lx * rx - ly * ry - lz * rz,
+            )
+
+        actual_quat = rotvec_to_quat(actual_rotvec)
+        target_quat = rotvec_to_quat(target_rotvec)
+        actual_inv = (
+            -actual_quat[0],
+            -actual_quat[1],
+            -actual_quat[2],
+            actual_quat[3],
+        )
+        rel_quat = multiply_quat(target_quat, actual_inv)
+        rel_norm = math.sqrt(sum(value * value for value in rel_quat))
+        if rel_norm < 1e-12:
+            return 0.0
+        rel_w = max(-1.0, min(1.0, rel_quat[3] / rel_norm))
+        return float(2.0 * math.acos(abs(rel_w)))
+
+    @staticmethod
+    def compute_pose_errors(actual_pose, target_pose):
+        if len(actual_pose) != 6 or len(target_pose) != 6:
+            raise ValueError('actual_pose and target_pose must be length 6')
+
+        pos_err = math.sqrt(
+            (float(actual_pose[0]) - float(target_pose[0])) ** 2
+            + (float(actual_pose[1]) - float(target_pose[1])) ** 2
+            + (float(actual_pose[2]) - float(target_pose[2])) ** 2
+        )
+        rot_err = URServoLPoseControllerNode._rotvec_error(
+            [float(actual_pose[3]), float(actual_pose[4]), float(actual_pose[5])],
+            [float(target_pose[3]), float(target_pose[4]), float(target_pose[5])],
+        )
+        return pos_err, rot_err
+
     def pose_callback(self, msg: Pose):
         rx, ry, rz = self.quaternion_to_rotvec(
             msg.orientation.x,
@@ -179,15 +255,9 @@ class URServoLPoseControllerNode(Node):
                             try:
                                 actual_pose = self.rtde_r.getActualTCPPose()
                                 if actual_pose is not None and len(actual_pose) == 6:
-                                    pos_err = math.sqrt(
-                                        (float(actual_pose[0]) - target_pose[0]) ** 2
-                                        + (float(actual_pose[1]) - target_pose[1]) ** 2
-                                        + (float(actual_pose[2]) - target_pose[2]) ** 2
-                                    )
-                                    rot_err = math.sqrt(
-                                        (float(actual_pose[3]) - target_pose[3]) ** 2
-                                        + (float(actual_pose[4]) - target_pose[4]) ** 2
-                                        + (float(actual_pose[5]) - target_pose[5]) ** 2
+                                    pos_err, rot_err = self.compute_pose_errors(
+                                        actual_pose,
+                                        target_pose,
                                     )
                             except Exception as exc:
                                 self.get_logger().warn(f'servoL验证读取当前TCP失败: {exc}')
