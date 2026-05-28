@@ -7,8 +7,9 @@ from launch.actions import (
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -49,6 +50,15 @@ def generate_launch_description():
     robot_ip = LaunchConfiguration('robot_ip')
     forcesensorport = LaunchConfiguration('forcesensorport')
     enable_admittance = LaunchConfiguration('enable_admittance')
+    trajectory_planner = LaunchConfiguration('trajectory_planner')
+    path_map_file = LaunchConfiguration('path_map_file')
+    path_map_publish_rate = LaunchConfiguration('path_map_publish_rate')
+    path_map_max_linear_speed = LaunchConfiguration('path_map_max_linear_speed')
+    path_map_max_angular_speed = LaunchConfiguration('path_map_max_angular_speed')
+    path_map_loop_path = LaunchConfiguration('path_map_loop_path')
+    path_map_enable_resampling = LaunchConfiguration('path_map_enable_resampling')
+    path_map_max_linear_step = LaunchConfiguration('path_map_max_linear_step')
+    path_map_max_angular_step = LaunchConfiguration('path_map_max_angular_step')
 
     hardware_tf_launch = IncludeLaunchDescription(
         _launch_file(
@@ -125,6 +135,42 @@ def generate_launch_description():
         }],
     )
 
+    path_map_trajectory_node = Node(
+        package='robot_trajectory_planner',
+        executable='path_map_trajectory_node',
+        name='path_map_trajectory_node',
+        output='screen',
+        parameters=[{
+            'current_pose_topic': EE_POSE_TOPIC,
+            'topic_desired_pose': DESIRED_POSE_TOPIC,
+            'topic_desired_twist': DESIRED_TWIST_TOPIC,
+            'topic_desired_accel': DESIRED_ACCEL_TOPIC,
+            'path_file': path_map_file,
+            'publish_rate': ParameterValue(path_map_publish_rate, value_type=float),
+            'max_linear_speed': ParameterValue(
+                path_map_max_linear_speed,
+                value_type=float,
+            ),
+            'max_angular_speed': ParameterValue(
+                path_map_max_angular_speed,
+                value_type=float,
+            ),
+            'loop_path': ParameterValue(path_map_loop_path, value_type=bool),
+            'enable_path_resampling': ParameterValue(
+                path_map_enable_resampling,
+                value_type=bool,
+            ),
+            'max_path_linear_step': ParameterValue(
+                path_map_max_linear_step,
+                value_type=float,
+            ),
+            'max_path_angular_step': ParameterValue(
+                path_map_max_angular_step,
+                value_type=float,
+            ),
+        }],
+    )
+
     admittance_controller_launch = IncludeLaunchDescription(
         _launch_file(
             'robot_admittance_control',
@@ -187,6 +233,26 @@ def generate_launch_description():
         DeclareLaunchArgument('robot_ip', default_value='192.168.1.102'),
         DeclareLaunchArgument('forcesensorport', default_value='/dev/ttyUSB0'),
         DeclareLaunchArgument('enable_admittance', default_value='true'),
+        DeclareLaunchArgument(
+            'trajectory_planner',
+            default_value='current_pose_hold',
+            description='Trajectory source: current_pose_hold or path_map.',
+        ),
+        DeclareLaunchArgument(
+            'path_map_file',
+            default_value='',
+            description=(
+                'Path-map file for path_map_trajectory_node. Empty uses '
+                'robot_trajectory_planner/share/data/path_map.txt.'
+            ),
+        ),
+        DeclareLaunchArgument('path_map_publish_rate', default_value='50.0'),
+        DeclareLaunchArgument('path_map_max_linear_speed', default_value='0.005'),
+        DeclareLaunchArgument('path_map_max_angular_speed', default_value='0.05'),
+        DeclareLaunchArgument('path_map_loop_path', default_value='false'),
+        DeclareLaunchArgument('path_map_enable_resampling', default_value='true'),
+        DeclareLaunchArgument('path_map_max_linear_step', default_value='0.001'),
+        DeclareLaunchArgument('path_map_max_angular_step', default_value='0.01'),
         SetEnvironmentVariable(
             'RCUTILS_LOGGING_SEVERITY_THRESHOLD',
             global_log_level,
@@ -199,7 +265,20 @@ def generate_launch_description():
             actions=[gravity_compensation_node],
         ),
         TimerAction(period=3.0, actions=[ee_state_from_tf_node]),
-        TimerAction(period=3.5, actions=[current_pose_hold_node]),
+        TimerAction(
+            period=4.5,
+            condition=IfCondition(PythonExpression([
+                "'", trajectory_planner, "' == 'current_pose_hold'",
+            ])),
+            actions=[current_pose_hold_node],
+        ),
+        TimerAction(
+            period=4.5,
+            condition=IfCondition(PythonExpression([
+                "'", trajectory_planner, "' == 'path_map'",
+            ])),
+            actions=[path_map_trajectory_node],
+        ),
         TimerAction(
             period=3.2,
             condition=IfCondition(enable_admittance),

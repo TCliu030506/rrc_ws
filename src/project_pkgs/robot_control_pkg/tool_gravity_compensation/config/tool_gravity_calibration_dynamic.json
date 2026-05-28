@@ -1,0 +1,49 @@
+{
+  "estimated_at": "2026-05-28T12:06:16.335774",
+  "mode": "hardware_dynamic_service",
+  "world_frame": "base",
+  "sensor_frame": "asm_force_sensor_link",
+  "gravity_norm": 9.81,
+  "sample_count": 600,
+  "rank": 14,
+  "rms_residual": 4.096516429593767,
+  "link_frames": [
+    "asm_tool_base_link",
+    "asm_tool_link1",
+    "asm_tool_link2"
+  ],
+  "link_masses": [
+    -0.7355895378201008,
+    -1.2011173608349464,
+    0.30832731854242257
+  ],
+  "link_com_x": [
+    33.582622174073144,
+    -10.189351786498223,
+    39.69355483770625
+  ],
+  "link_com_y": [
+    -196.09750006231252,
+    -120.09423403738501,
+    -937.4940290148792
+  ],
+  "link_com_z": [
+    8.552210443425919,
+    -25.38788706382224,
+    -51.9704231598816
+  ],
+  "force_bias": [
+    -12.245441264495447,
+    17.65500183860267,
+    21.331770535731696
+  ],
+  "torque_bias": [
+    -0.13055408072178687,
+    -0.35944138210735055,
+    0.03532552653891645
+  ],
+  "tool_joint_names": [
+    "brt_encoder1_joint",
+    "brt_encoder2_joint"
+  ]
+}

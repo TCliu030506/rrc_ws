@@ -12,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
+        (os.path.join('share', package_name, 'data'), glob('data/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -28,6 +29,7 @@ setup(
             'scan_raster_trajectory_node = robot_trajectory_planner.scan_raster_trajectory_node:main',
             'scan_cylindrical_surface_node = robot_trajectory_planner.scan_cylindrical_surface_node:main',
             'current_pose_hold_node = robot_trajectory_planner.current_pose_hold_node:main',
+            'path_map_trajectory_node = robot_trajectory_planner.path_map_trajectory_node:main',
         ],
     },
 )
