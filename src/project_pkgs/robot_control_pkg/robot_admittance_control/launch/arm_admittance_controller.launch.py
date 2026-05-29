@@ -14,11 +14,6 @@ def generate_launch_description():
     desired_pose_topic = LaunchConfiguration("desired_pose_topic")
     desired_twist_topic = LaunchConfiguration("desired_twist_topic")
     desired_accel_topic = LaunchConfiguration("desired_accel_topic")
-    enable_output_smoothing = LaunchConfiguration("enable_output_smoothing")
-    twist_smoothing_alpha_linear = LaunchConfiguration("twist_smoothing_alpha_linear")
-    twist_smoothing_alpha_angular = LaunchConfiguration("twist_smoothing_alpha_angular")
-    pose_smoothing_alpha_linear = LaunchConfiguration("pose_smoothing_alpha_linear")
-    pose_smoothing_alpha_angular = LaunchConfiguration("pose_smoothing_alpha_angular")
     params_file = LaunchConfiguration("admittance_params_file")
 
     return LaunchDescription([
@@ -31,11 +26,6 @@ def generate_launch_description():
         DeclareLaunchArgument("desired_pose_topic", default_value="/desired_pose"),
         DeclareLaunchArgument("desired_twist_topic", default_value="/desired_twist"),
         DeclareLaunchArgument("desired_accel_topic", default_value="/desired_accel"),
-        DeclareLaunchArgument("enable_output_smoothing", default_value="true"),
-        DeclareLaunchArgument("twist_smoothing_alpha_linear", default_value="0.25"),
-        DeclareLaunchArgument("twist_smoothing_alpha_angular", default_value="0.20"),
-        DeclareLaunchArgument("pose_smoothing_alpha_linear", default_value="0.35"),
-        DeclareLaunchArgument("pose_smoothing_alpha_angular", default_value="0.30"),
         DeclareLaunchArgument(
             "admittance_params_file",
             default_value="/home/liutiancheng/Lab_WS/rrc_ws/src/robot_control_pkg/robot_admittance_control/config/admittance_params_ros2.yaml",
@@ -57,11 +47,6 @@ def generate_launch_description():
                     "topic_desired_pose": desired_pose_topic,
                     "topic_desired_twist": desired_twist_topic,
                     "topic_desired_accel": desired_accel_topic,
-                    "enable_output_smoothing": enable_output_smoothing,
-                    "twist_smoothing_alpha_linear": twist_smoothing_alpha_linear,
-                    "twist_smoothing_alpha_angular": twist_smoothing_alpha_angular,
-                    "pose_smoothing_alpha_linear": pose_smoothing_alpha_linear,
-                    "pose_smoothing_alpha_angular": pose_smoothing_alpha_angular,
                 },
             ],
         ),

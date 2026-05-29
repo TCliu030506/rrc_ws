@@ -3,7 +3,7 @@ dynamic_gravity_compensation_node:
     wrench_in_topic: /external_force_torque_wrench
     wrench_out_topic: /external_force_torque_wrench_compensated
     gravity_wrench_topic: /external_gravity_compensation_wrench_model
-    enable_inertia_compensation: true
+    enable_inertia_compensation: false
     accel_topic: /asm_force_sensor_link/accel
     inertia_wrench_topic: /external_inertia_compensation_wrench_model
     max_inertia_force: 30.0
