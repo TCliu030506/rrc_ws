@@ -146,11 +146,31 @@ install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
 )
 
+install(DIRECTORY docs
+  DESTINATION share/${PROJECT_NAME}
+)
+
 install(DIRECTORY ur_description
   DESTINATION share/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(tool_frame_admittance_math_test
+    test/tool_frame_admittance_math_test.cpp
+  )
+  if(TARGET tool_frame_admittance_math_test)
+    target_include_directories(tool_frame_admittance_math_test PRIVATE
+      include
+      ${EIGEN3_INCLUDE_DIRS}
+    )
+    target_compile_features(tool_frame_admittance_math_test PUBLIC cxx_std_17)
+    ament_target_dependencies(tool_frame_admittance_math_test
+      Eigen3
+    )
+  endif()
+
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
   # comment the line when a copyright and license is added to all source files

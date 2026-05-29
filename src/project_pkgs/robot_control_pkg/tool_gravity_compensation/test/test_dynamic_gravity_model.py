@@ -3,6 +3,8 @@ import math
 import numpy as np
 
 from tool_gravity_compensation.dynamic_gravity_model import (
+    aggregate_rigid_body_params,
+    predict_rigid_body_inertia_wrench,
     predict_dynamic_gravity_wrench,
     solve_dynamic_gravity_params,
 )
@@ -129,3 +131,41 @@ def test_predict_dynamic_gravity_wrench_matches_link_sum_model():
 
     np.testing.assert_allclose(force, expected["force"])
     np.testing.assert_allclose(torque, expected["torque"])
+
+
+def test_aggregate_rigid_body_params_uses_current_link_transforms():
+    masses = [1.0, 3.0]
+    coms = [
+        np.array([0.1, 0.0, 0.0]),
+        np.array([0.0, 0.2, 0.0]),
+    ]
+    transforms = [
+        {"rot": np.eye(3), "trans": np.array([0.0, 0.0, 0.0])},
+        {"rot": _rot_z(math.pi / 2.0), "trans": np.array([1.0, 0.0, 0.0])},
+    ]
+
+    total_mass, com_sensor = aggregate_rigid_body_params(masses, coms, transforms)
+
+    assert total_mass == 4.0
+    expected_com = (
+        1.0 * np.array([0.1, 0.0, 0.0])
+        + 3.0 * np.array([0.8, 0.0, 0.0])
+    ) / 4.0
+    np.testing.assert_allclose(com_sensor, expected_com, atol=1e-12)
+
+
+def test_predict_rigid_body_inertia_wrench_uses_negative_mass_acceleration():
+    total_mass = 2.0
+    com_sensor = np.array([0.0, 0.1, 0.0])
+    linear_accel_sensor = np.array([1.5, 0.0, 0.0])
+
+    force, torque = predict_rigid_body_inertia_wrench(
+        total_mass,
+        com_sensor,
+        linear_accel_sensor,
+    )
+
+    expected_force = np.array([-3.0, 0.0, 0.0])
+    expected_torque = np.cross(com_sensor, expected_force)
+    np.testing.assert_allclose(force, expected_force)
+    np.testing.assert_allclose(torque, expected_torque)

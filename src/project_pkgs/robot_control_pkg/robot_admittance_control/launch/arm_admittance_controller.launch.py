@@ -34,8 +34,8 @@ def generate_launch_description():
         DeclareLaunchArgument("enable_output_smoothing", default_value="true"),
         DeclareLaunchArgument("twist_smoothing_alpha_linear", default_value="0.25"),
         DeclareLaunchArgument("twist_smoothing_alpha_angular", default_value="0.20"),
-        DeclareLaunchArgument("pose_smoothing_alpha_linear", default_value="0.25"),
-        DeclareLaunchArgument("pose_smoothing_alpha_angular", default_value="0.20"),
+        DeclareLaunchArgument("pose_smoothing_alpha_linear", default_value="0.35"),
+        DeclareLaunchArgument("pose_smoothing_alpha_angular", default_value="0.30"),
         DeclareLaunchArgument(
             "admittance_params_file",
             default_value="/home/liutiancheng/Lab_WS/rrc_ws/src/robot_control_pkg/robot_admittance_control/config/admittance_params_ros2.yaml",

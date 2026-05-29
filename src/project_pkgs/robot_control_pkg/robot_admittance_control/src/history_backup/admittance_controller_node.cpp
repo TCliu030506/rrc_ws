@@ -45,8 +45,6 @@ int main(int argc, char **argv)
   node->declare_parameter("arm_base_frame", "base");
   node->declare_parameter("ft_sensor_frame", "sensor_frame");
   node->declare_parameter("control_wrench_frame", "arm_base_link");
-  node->declare_parameter("admittance_frame", "asm_ee_site");
-  node->declare_parameter("tool_displacement_reference", "current");
   node->declare_parameter("mass_arm", std::vector<double>{});
   node->declare_parameter("damping_arm", std::vector<double>{});
   node->declare_parameter("stiffness_arm", std::vector<double>{});  // 新增

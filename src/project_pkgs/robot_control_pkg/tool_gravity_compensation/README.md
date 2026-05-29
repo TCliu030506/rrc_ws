@@ -57,6 +57,16 @@ ros2 service call /solve_and_save std_srvs/srv/Trigger {}
 ros2 launch tool_gravity_compensation gravity_compensation.launch.py
 ```
 
+## 动态标定时：
+每换一个静止、无接触姿态后调用一次：
+```bash
+ros2 service call /dynamic_gravity_calibration_node/collect_current_pose std_srvs/srv/Trigger
+```
+采够多个姿态后：
+```bash
+ros2 service call /dynamic_gravity_calibration_node/solve_and_save std_srvs/srv/Trigger
+```
+
 ## Config Files
 
 - `config/gravity_calibration_params.yaml`

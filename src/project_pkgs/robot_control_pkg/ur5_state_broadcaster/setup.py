@@ -27,6 +27,7 @@ setup(
     entry_points={
         'console_scripts': [
             'tcp_twist_estimator = ur5_state_broadcaster.tcp_twist_estimator:main',
+            'frame_motion_from_tf = ur5_state_broadcaster.frame_motion_from_tf_node:main',
         ],
     },
 )

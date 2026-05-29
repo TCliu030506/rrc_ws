@@ -17,6 +17,8 @@ admittance_controller_node:
     arm_base_frame: "world"
     ft_sensor_frame: "asm_force_sensor_link"
     control_wrench_frame: "world"
+    admittance_frame: "asm_ee_site"
+    tool_displacement_reference: "current"
 
     # 平面扫查质量设置
     mass_arm: [20.0, 0.0, 0.0, 0.0, 0.0, 0.0,

@@ -123,3 +123,38 @@ def predict_dynamic_gravity_wrench(g_sensor, transforms, params) -> tuple[np.nda
         torque_model += torque_i
 
     return force_model, torque_model
+
+
+def aggregate_rigid_body_params(link_masses, link_coms, transforms) -> tuple[float, np.ndarray]:
+    masses = [float(value) for value in link_masses]
+    coms = [np.asarray(value, dtype=float) for value in link_coms]
+    if len(transforms) != len(masses) or len(masses) != len(coms):
+        raise ValueError('transforms, link_masses, and link_coms lengths must match')
+
+    total_mass = float(sum(masses))
+    if abs(total_mass) <= 1e-12:
+        return 0.0, np.zeros(3, dtype=float)
+
+    weighted_com = np.zeros(3, dtype=float)
+    for index, (transform, mass, com_local) in enumerate(zip(transforms, masses, coms)):
+        rot = _as_matrix3(transform['rot'], f'transforms[{index}].rot')
+        trans = _as_vector3(transform['trans'], f'transforms[{index}].trans')
+        com = _as_vector3(com_local, f'link_coms[{index}]')
+        com_sensor = trans + rot @ com
+        weighted_com += mass * com_sensor
+
+    return total_mass, weighted_com / total_mass
+
+
+def predict_rigid_body_inertia_wrench(
+    total_mass,
+    com_sensor,
+    linear_accel_sensor,
+) -> tuple[np.ndarray, np.ndarray]:
+    mass = float(total_mass)
+    com = _as_vector3(com_sensor, 'com_sensor')
+    linear_accel = _as_vector3(linear_accel_sensor, 'linear_accel_sensor')
+
+    force_model = -mass * linear_accel
+    torque_model = np.cross(com, force_model)
+    return force_model, torque_model

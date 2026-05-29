@@ -106,6 +106,41 @@ def generate_launch_description():
         ],
     )
 
+    dynamic_gravity_compensation_node = Node(
+        package='tool_gravity_compensation',
+        executable='dynamic_gravity_compensation_node',
+        name='dynamic_gravity_compensation_node',
+        output='screen',
+        parameters=[
+            PathJoinSubstitution([
+                FindPackageShare('tool_gravity_compensation'),
+                'config',
+                'gravity_compensation_dynamic_params.yaml',
+            ]),
+            {
+                'wrench_in_topic': RAW_WRENCH_TOPIC,
+                'wrench_out_topic': COMPENSATED_WRENCH_TOPIC,
+                'gravity_wrench_topic': GRAVITY_WRENCH_TOPIC,
+            },
+        ],
+    )
+
+    force_sensor_motion_node = Node(
+        package='ur5_state_broadcaster',
+        executable='frame_motion_from_tf',
+        name='force_sensor_motion_from_tf_node',
+        output='screen',
+        parameters=[{
+            'source_frame': BASE_FRAME,
+            'target_frame': 'asm_force_sensor_link',
+            'output_pose_topic': '/asm_force_sensor_link/pose',
+            'output_twist_topic': '/asm_force_sensor_link/twist',
+            'output_accel_topic': '/asm_force_sensor_link/accel',
+            'publish_rate': 125.0,
+            'express_in_target_frame': True,
+        }],
+    )
+
     ee_state_from_tf_node = Node(
         package='ultra_scanning_sim',
         executable='ee_state_from_tf_node',
@@ -260,9 +295,19 @@ def generate_launch_description():
         TimerAction(period=0.0, actions=[force_sensor_launch]),
         TimerAction(period=1.2, actions=[hardware_tf_launch]),
         TimerAction(
+            period=2.0,
+            condition=IfCondition(enable_admittance),
+            actions=[force_sensor_motion_node],
+        ),
+        # TimerAction(
+        #     period=2.5,
+        #     condition=IfCondition(enable_admittance),
+        #     actions=[gravity_compensation_node],
+        # ),
+        TimerAction(
             period=2.5,
             condition=IfCondition(enable_admittance),
-            actions=[gravity_compensation_node],
+            actions=[dynamic_gravity_compensation_node],
         ),
         TimerAction(period=3.0, actions=[ee_state_from_tf_node]),
         TimerAction(

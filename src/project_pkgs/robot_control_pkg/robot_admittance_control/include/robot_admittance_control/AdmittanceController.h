@@ -133,6 +133,8 @@ protected:
   double pose_smoothing_alpha_angular_{0.20};    // 姿态slerp系数[0,1]
   bool output_smoothing_initialized_{false};      // 滤波状态是否已初始化
   bool pose_smoothing_initialized_{false};        // 位姿滤波状态是否已初始化
+  bool admittance_state_frame_initialized_{false}; // 导纳状态是否已绑定到当前工具坐标
+  Quaterniond admittance_state_orientation_;       // 上一次导纳状态使用的工具坐标姿态
   bool enable_wrench_filter_{true};               // 是否启用外力一阶滤波
   double wrench_filter_tau_{0.015};               // 外力滤波时间常数(s)
   bool wrench_filter_initialized_{false};         // 外力滤波状态是否已初始化
@@ -165,6 +167,8 @@ protected:
   std::string arm_base_frame_;       // 机械臂基坐标系
   std::string ft_sensor_frame_;      // 力传感器坐标系
   std::string control_wrench_frame_; // 控制输入力坐标系
+  std::string admittance_frame_;     // 导纳动力学计算坐标系，默认工具控制点asm_ee_site
+  std::string tool_displacement_reference_; // local柔顺位移叠加参考：desired或current
 
   // --- TF监听 ---
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;              // TF缓存
@@ -215,4 +219,3 @@ public:
 };
 
 #endif // ADMITTANCECONTROLLER_H
-

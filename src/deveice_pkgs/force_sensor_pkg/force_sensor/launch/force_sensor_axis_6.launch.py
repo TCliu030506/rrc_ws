@@ -9,7 +9,7 @@ def generate_launch_description():
         DeclareLaunchArgument('forcesensorport', default_value='/dev/ttyUSB0'),
         DeclareLaunchArgument('pubrate', default_value='100'),
         DeclareLaunchArgument('baudrate', default_value='115200'),
-        DeclareLaunchArgument('frame_id', default_value='base_frame'),
+        DeclareLaunchArgument('frame_id', default_value='asm_force_sensor_link'),
         DeclareLaunchArgument('topic_name', default_value='external_force_torque_wrench'),
         DeclareLaunchArgument('auto_zero', default_value='false'),
         Node(

@@ -1,5 +1,4 @@
 #include "robot_admittance_control/AdmittanceController.h"  // 头文件
-#include "robot_admittance_control/tool_frame_admittance_math.h"
 #include <chrono>   // 时间相关
 #include <thread>   // 线程休眠
 
@@ -44,24 +43,10 @@ AdmittanceController::AdmittanceController(
   if (!node_->has_parameter("control_wrench_frame")) {
     node_->declare_parameter("control_wrench_frame", "base");
   }
-  if (!node_->has_parameter("admittance_frame")) {
-    node_->declare_parameter("admittance_frame", "asm_ee_site");
-  }
-  if (!node_->has_parameter("tool_displacement_reference")) {
-    node_->declare_parameter("tool_displacement_reference", "current");
-  }
   node_->get_parameter("base_frame", base_frame_);
   node_->get_parameter("arm_base_frame", arm_base_frame_);
   node_->get_parameter("ft_sensor_frame", ft_sensor_frame_);
   node_->get_parameter("control_wrench_frame", control_wrench_frame_);
-  node_->get_parameter("admittance_frame", admittance_frame_);
-  node_->get_parameter("tool_displacement_reference", tool_displacement_reference_);
-  if (tool_displacement_reference_ != "current" && tool_displacement_reference_ != "desired") {
-    RCLCPP_WARN(node_->get_logger(),
-      "Unsupported tool_displacement_reference=%s. Falling back to current.",
-      tool_displacement_reference_.c_str());
-    tool_displacement_reference_ = "current";
-  }
 
   if (!node_->has_parameter("topic_desired_pose")) {
     node_->declare_parameter("topic_desired_pose", "/desired_pose");
@@ -239,8 +224,6 @@ AdmittanceController::AdmittanceController(
   output_smoothing_initialized_ = false;
   pose_smoothing_initialized_ = false;
   wrench_filter_initialized_ = false;
-  admittance_state_frame_initialized_ = false;
-  admittance_state_orientation_.setIdentity();
   last_wrench_filter_time_ = node_->get_clock()->now();
   ft_arm_ready_ = false;
   arm_world_ready_ = false;
@@ -294,22 +277,6 @@ void AdmittanceController::compute_admittance()
   }
 
   // 虚拟导纳：M*xdd_a + D*xd_a + K*x_a = F_ext - F_ctrl
-  const Quaterniond current_admittance_orientation = arm_real_orientation_.normalized();
-  if (!admittance_state_frame_initialized_) {
-    admittance_state_orientation_ = current_admittance_orientation;
-    admittance_state_frame_initialized_ = true;
-  } else {
-    admittance_displacement_ = robot_admittance_control::reexpressToolFrameVector(
-      admittance_state_orientation_,
-      current_admittance_orientation,
-      admittance_displacement_);
-    admittance_twist_ = robot_admittance_control::reexpressToolFrameVector(
-      admittance_state_orientation_,
-      current_admittance_orientation,
-      admittance_twist_);
-    admittance_state_orientation_ = current_admittance_orientation;
-  }
-
   Vector6d admittance_virtual_acc = M_a_.inverse() * (
       wrench_external_ - wrench_control_
       - D_a_ * admittance_twist_
@@ -333,18 +300,20 @@ void AdmittanceController::compute_admittance()
   admittance_twist_ += admittance_virtual_acc * dt;
   admittance_displacement_ += admittance_twist_ * dt;
 
-  // 工具坐标系导纳位姿输出：
-  // admittance_displacement_定义在admittance_frame_中，发布前叠加到参考工具位姿并转换回base_frame_表达。
-  const Vector3d & reference_position =
-    (tool_displacement_reference_ == "desired") ? desired_position_ : arm_real_position_;
-  const Quaterniond & reference_orientation =
-    (tool_displacement_reference_ == "desired") ? desired_orientation_ : arm_real_orientation_;
-  const auto raw_pose_command = robot_admittance_control::composeToolFramePoseCommand(
-    reference_position,
-    reference_orientation,
-    admittance_displacement_);
+  // 动力学位置输出：x_cmd = x_d + x_a
+  // 其中 x_a(0:3) 是位置虚拟位移，x_a(3:6) 是小旋转向量（轴角）
+  const Vector3d raw_arm_command_position = desired_position_ + admittance_displacement_.segment(0, 3);
+  const Vector3d delta_rotvec = admittance_displacement_.segment(3, 3);
+  const double delta_angle = delta_rotvec.norm();
+  Quaterniond delta_q = Quaterniond::Identity();
+  if (delta_angle > 1e-12) {
+    const Vector3d delta_axis = delta_rotvec / delta_angle;
+    delta_q = Quaterniond(Eigen::AngleAxisd(delta_angle, delta_axis));
+  }
+  Quaterniond raw_arm_command_orientation = delta_q * desired_orientation_;
+  raw_arm_command_orientation.normalize();
 
-  apply_pose_smoothing(raw_pose_command.position, raw_pose_command.orientation);
+  apply_pose_smoothing(raw_arm_command_position, raw_arm_command_orientation);
 
   // 外环速度跟踪：v_track = Kp*e + Ki*int(e)
   Vector6d tracking_pose_error = Vector6d::Zero();
@@ -368,11 +337,9 @@ void AdmittanceController::compute_admittance()
   Vector6d track_twist = track_kp_.cwiseProduct(tracking_pose_error)
                        + track_ki_.cwiseProduct(track_error_integral_);
 
-  // 速度指令：轨迹参考速度 + 工具坐标系导纳速度转换到base_frame_ + 跟踪纠偏速度
+  // 速度指令：轨迹参考速度 + 虚拟导纳速度 + 跟踪纠偏速度
   // 原始导纳输出（未平滑）：轨迹参考 + 导纳补偿 + 跟踪纠偏
-  const Vector6d admittance_twist_base =
-    robot_admittance_control::rotateToolFrameTwistToBase(reference_orientation, admittance_twist_);
-  Vector6d raw_arm_desired_twist = desired_twist_ + admittance_twist_base + track_twist;
+  Vector6d raw_arm_desired_twist = desired_twist_ + admittance_twist_ + track_twist;
 
   apply_twist_smoothing(raw_arm_desired_twist);
 
@@ -483,7 +450,6 @@ void AdmittanceController::pose_arm_callback(
                                msg->orientation.y,
                                msg->orientation.z,
                                msg->orientation.w;
-  arm_real_orientation_.normalize();
 }
 
 // 机械臂基坐标系下末端位姿回调
@@ -494,7 +460,6 @@ void AdmittanceController::pose_arm_arm_callback(
                                msg->orientation.y,
                                msg->orientation.z,
                                msg->orientation.w;
-  arm_real_orientation_arm_.normalize();
 }
 
 // 机械臂末端速度回调，更新速度状态
@@ -513,7 +478,6 @@ void AdmittanceController::desired_pose_callback(
                                    msg->orientation.y,
                                    msg->orientation.z,
                                    msg->orientation.w;
-  desired_orientation_.normalize();
   desired_pose_ready_ = true;
 }
 
@@ -535,11 +499,11 @@ void AdmittanceController::desired_accel_callback(
   desired_accel_ready_ = true;
 }
 
-// 力/力矩传感器回调，将传感器数据变换到admittance_frame_坐标系
+// 力/力矩传感器回调，将传感器数据变换到base_link坐标系
 void AdmittanceController::wrench_external_callback(
   const geometry_msgs::msg::WrenchStamped::SharedPtr msg) {
   Vector6d wrench_ft_frame;
-  Vector6d raw_wrench_admittance;
+  Vector6d raw_wrench_base;
   if (ft_arm_ready_) {
     // 读取FT传感器自身坐标系下的力/力矩
     wrench_ft_frame << msg->wrench.force.x, msg->wrench.force.y,
@@ -547,16 +511,16 @@ void AdmittanceController::wrench_external_callback(
                     msg->wrench.torque.y, msg->wrench.torque.z;
     const std::string source_frame = msg->header.frame_id.empty() ? ft_sensor_frame_ : msg->header.frame_id;
 
-    // 坐标变换到导纳计算坐标系（使用完整6x6伴随矩阵）
-    if (source_frame == admittance_frame_) {
+    // 坐标变换到控制参考坐标系（使用完整6x6伴随矩阵）
+    if (source_frame == base_frame_) {
       rotation_tool_.setZero();
       rotation_tool_.topLeftCorner(3, 3) = Matrix3d::Identity();
       rotation_tool_.bottomRightCorner(3, 3) = Matrix3d::Identity();
-    } else if (!get_wrench_transform(rotation_tool_, admittance_frame_, source_frame)) {
+    } else if (!get_wrench_transform(rotation_tool_, base_frame_, source_frame)) {
       return;
     }
-    raw_wrench_admittance << rotation_tool_ * wrench_ft_frame;
-    wrench_external_ << filter_external_wrench(raw_wrench_admittance);
+    raw_wrench_base << rotation_tool_ * wrench_ft_frame;
+    wrench_external_ << filter_external_wrench(raw_wrench_base);
   }
 }
 
@@ -574,7 +538,7 @@ void AdmittanceController::wrench_external_callback(
 //   }
 // }
 
-// 控制输入力/力矩回调，将力数据变换到admittance_frame_坐标系
+// 控制输入力/力矩回调，将力数据变换到控制参考坐标系
 void AdmittanceController::wrench_control_callback(
   const geometry_msgs::msg::WrenchStamped::SharedPtr msg) {
   if (!ft_arm_ready_) {
@@ -589,18 +553,18 @@ void AdmittanceController::wrench_control_callback(
                   msg->wrench.force.z, msg->wrench.torque.x,
                   msg->wrench.torque.y, msg->wrench.torque.z;
   
-  const std::string source_frame = msg->header.frame_id.empty() ? control_wrench_frame_ : msg->header.frame_id;
+  const std::string source_frame = msg->header.frame_id.empty() ? base_frame_ : msg->header.frame_id;
   
-  // 坐标变换到导纳计算坐标系（使用完整6x6伴随矩阵）
+  // 坐标变换到控制参考坐标系（使用完整6x6伴随矩阵）
   Matrix6d rotation_control;
-  if (source_frame == admittance_frame_) {
+  if (source_frame == base_frame_) {
     rotation_control.setZero();
     rotation_control.topLeftCorner(3, 3) = Matrix3d::Identity();
     rotation_control.bottomRightCorner(3, 3) = Matrix3d::Identity();
-  } else if (!get_wrench_transform(rotation_control, admittance_frame_, source_frame)) {
+  } else if (!get_wrench_transform(rotation_control, base_frame_, source_frame)) {
     RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 5000,
       "wrench_control_callback: failed to transform from %s to %s",
-      source_frame.c_str(), admittance_frame_.c_str());
+      source_frame.c_str(), base_frame_.c_str());
     return;
   }
   
@@ -730,7 +694,7 @@ void AdmittanceController::wait_for_transformations() {
     world_arm_ready_ = true;
   }
 
-  if (ft_sensor_frame_ == admittance_frame_) {
+  if (ft_sensor_frame_ == base_frame_) {
     rotation_tool_.topLeftCorner(3, 3) = Matrix3d::Identity();
     rotation_tool_.bottomRightCorner(3, 3) = Matrix3d::Identity();
     ft_arm_ready_ = true;
@@ -738,13 +702,11 @@ void AdmittanceController::wait_for_transformations() {
     // 力传感器坐标系允许后续在回调中动态等待，不阻塞整个控制器启动
     ft_arm_ready_ = true;
     RCLCPP_WARN(node_->get_logger(),
-      "FT frame (%s) differs from admittance frame (%s). Will transform at runtime.",
-      ft_sensor_frame_.c_str(), admittance_frame_.c_str());
+      "FT frame (%s) differs from base frame (%s). Will transform at runtime.",
+      ft_sensor_frame_.c_str(), base_frame_.c_str());
   }
 
-  RCLCPP_INFO(node_->get_logger(),
-    "The Force/Torque sensor is ready to use. admittance_frame=%s, pose_command_base=%s, displacement_reference=%s",
-    admittance_frame_.c_str(), base_frame_.c_str(), tool_displacement_reference_.c_str());
+  RCLCPP_INFO(node_->get_logger(), "The Force/Torque sensor is ready to use.");
 }
 
 
