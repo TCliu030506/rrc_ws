@@ -59,6 +59,31 @@ def generate_launch_description():
     path_map_enable_resampling = LaunchConfiguration('path_map_enable_resampling')
     path_map_max_linear_step = LaunchConfiguration('path_map_max_linear_step')
     path_map_max_angular_step = LaunchConfiguration('path_map_max_angular_step')
+    contact_scan_force_axis = LaunchConfiguration('contact_scan_force_axis')
+    contact_scan_force_axis_sign = LaunchConfiguration(
+        'contact_scan_force_axis_sign',
+    )
+    contact_scan_approach_axis_sign = LaunchConfiguration(
+        'contact_scan_approach_axis_sign',
+    )
+    contact_scan_contact_force_threshold = LaunchConfiguration(
+        'contact_scan_contact_force_threshold',
+    )
+    contact_scan_target_contact_force = LaunchConfiguration(
+        'contact_scan_target_contact_force',
+    )
+    contact_scan_max_contact_force = LaunchConfiguration(
+        'contact_scan_max_contact_force',
+    )
+    contact_scan_max_search_distance = LaunchConfiguration(
+        'contact_scan_max_search_distance',
+    )
+    contact_scan_pre_contact_speed = LaunchConfiguration(
+        'contact_scan_pre_contact_speed',
+    )
+    contact_scan_retract_distance = LaunchConfiguration(
+        'contact_scan_retract_distance',
+    )
 
     hardware_tf_launch = IncludeLaunchDescription(
         _launch_file(
@@ -85,25 +110,6 @@ def generate_launch_description():
             'topic_name': RAW_WRENCH_TOPIC,
             'auto_zero': 'false',
         }.items(),
-    )
-
-    gravity_compensation_node = Node(
-        package='tool_gravity_compensation',
-        executable='gravity_compensation_node',
-        name='gravity_compensation_node',
-        output='screen',
-        parameters=[
-            PathJoinSubstitution([
-                FindPackageShare('tool_gravity_compensation'),
-                'config',
-                'gravity_compensation_params_v2.yaml',
-            ]),
-            {
-                'wrench_in_topic': RAW_WRENCH_TOPIC,
-                'wrench_out_topic': COMPENSATED_WRENCH_TOPIC,
-                'gravity_wrench_topic': GRAVITY_WRENCH_TOPIC,
-            },
-        ],
     )
 
     dynamic_gravity_compensation_node = Node(
@@ -206,6 +212,76 @@ def generate_launch_description():
         }],
     )
 
+    contact_scan_trajectory_node = Node(
+        package='ultra_scanning_system',
+        executable='contact_scan_trajectory_node',
+        name='contact_scan_trajectory_node',
+        output='screen',
+        parameters=[{
+            'current_pose_topic': EE_POSE_TOPIC,
+            'compensated_wrench_topic': COMPENSATED_WRENCH_TOPIC,
+            'topic_desired_pose': DESIRED_POSE_TOPIC,
+            'topic_desired_twist': DESIRED_TWIST_TOPIC,
+            'topic_desired_accel': DESIRED_ACCEL_TOPIC,
+            'topic_control_wrench': CONTROL_WRENCH_TOPIC,
+            'control_wrench_frame': ASM_EE_FRAME,
+            'path_file': path_map_file,
+            'publish_rate': ParameterValue(
+                path_map_publish_rate,
+                value_type=float,
+            ),
+            'max_linear_speed': ParameterValue(
+                path_map_max_linear_speed,
+                value_type=float,
+            ),
+            'max_angular_speed': ParameterValue(
+                path_map_max_angular_speed,
+                value_type=float,
+            ),
+            'max_path_linear_step': ParameterValue(
+                path_map_max_linear_step,
+                value_type=float,
+            ),
+            'max_path_angular_step': ParameterValue(
+                path_map_max_angular_step,
+                value_type=float,
+            ),
+            'force_axis': contact_scan_force_axis,
+            'force_axis_sign': ParameterValue(
+                contact_scan_force_axis_sign,
+                value_type=float,
+            ),
+            'approach_axis_sign': ParameterValue(
+                contact_scan_approach_axis_sign,
+                value_type=float,
+            ),
+            'contact_force_threshold': ParameterValue(
+                contact_scan_contact_force_threshold,
+                value_type=float,
+            ),
+            'target_contact_force': ParameterValue(
+                contact_scan_target_contact_force,
+                value_type=float,
+            ),
+            'max_contact_force': ParameterValue(
+                contact_scan_max_contact_force,
+                value_type=float,
+            ),
+            'max_search_distance': ParameterValue(
+                contact_scan_max_search_distance,
+                value_type=float,
+            ),
+            'pre_contact_speed': ParameterValue(
+                contact_scan_pre_contact_speed,
+                value_type=float,
+            ),
+            'retract_distance': ParameterValue(
+                contact_scan_retract_distance,
+                value_type=float,
+            ),
+        }],
+    )
+
     admittance_controller_launch = IncludeLaunchDescription(
         _launch_file(
             'robot_admittance_control',
@@ -271,7 +347,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'trajectory_planner',
             default_value='current_pose_hold',
-            description='Trajectory source: current_pose_hold or path_map.',
+            description='Trajectory source: current_pose_hold, path_map, or contact_scan.',
         ),
         DeclareLaunchArgument(
             'path_map_file',
@@ -288,6 +364,36 @@ def generate_launch_description():
         DeclareLaunchArgument('path_map_enable_resampling', default_value='true'),
         DeclareLaunchArgument('path_map_max_linear_step', default_value='0.001'),
         DeclareLaunchArgument('path_map_max_angular_step', default_value='0.01'),
+        DeclareLaunchArgument('contact_scan_force_axis', default_value='z'),
+        DeclareLaunchArgument('contact_scan_force_axis_sign', default_value='1.0'),
+        DeclareLaunchArgument(
+            'contact_scan_approach_axis_sign',
+            default_value='1.0',
+        ),
+        DeclareLaunchArgument(
+            'contact_scan_contact_force_threshold',
+            default_value='2.0',
+        ),
+        DeclareLaunchArgument(
+            'contact_scan_target_contact_force',
+            default_value='6.0',
+        ),
+        DeclareLaunchArgument(
+            'contact_scan_max_contact_force',
+            default_value='12.0',
+        ),
+        DeclareLaunchArgument(
+            'contact_scan_max_search_distance',
+            default_value='0.04',
+        ),
+        DeclareLaunchArgument(
+            'contact_scan_pre_contact_speed',
+            default_value='0.002',
+        ),
+        DeclareLaunchArgument(
+            'contact_scan_retract_distance',
+            default_value='0.04',
+        ),
         SetEnvironmentVariable(
             'RCUTILS_LOGGING_SEVERITY_THRESHOLD',
             global_log_level,
@@ -323,6 +429,13 @@ def generate_launch_description():
                 "'", trajectory_planner, "' == 'path_map'",
             ])),
             actions=[path_map_trajectory_node],
+        ),
+        TimerAction(
+            period=4.5,
+            condition=IfCondition(PythonExpression([
+                "'", trajectory_planner, "' == 'contact_scan'",
+            ])),
+            actions=[contact_scan_trajectory_node],
         ),
         TimerAction(
             period=3.2,
