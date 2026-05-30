@@ -31,6 +31,10 @@ setup(
         'console_scripts': [
             'asm_tool_tf_broadcaster = ultra_scanning_system.asm_tool_tf_broadcaster:main',
             'asm_ee_command_transform = ultra_scanning_system.asm_ee_command_transform:main',
+            (
+                'contact_scan_trajectory_node = '
+                'ultra_scanning_system.contact_scan_trajectory_node:main'
+            ),
         ],
     },
 )
