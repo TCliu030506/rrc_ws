@@ -14,6 +14,9 @@ admittance_controller_node:
     enable_wrench_filter: false
     wrench_filter_tau: 0.00005
 
+    admittance_displacement_limit: [0.010, 0.010, 0.015, 0.050, 0.050, 0.030]
+    admittance_twist_limit: [0.020, 0.020, 0.020, 0.100, 0.100, 0.080]
+
     enable_output_smoothing: true
     pose_smoothing_alpha_linear: 0.85
     pose_smoothing_alpha_angular: 0.80

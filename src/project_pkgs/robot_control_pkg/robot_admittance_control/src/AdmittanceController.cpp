@@ -102,12 +102,24 @@ AdmittanceController::AdmittanceController(
   if (!node_->has_parameter("wrench_filter_tau")) {
     node_->declare_parameter("wrench_filter_tau", 0.015);
   }
+  if (!node_->has_parameter("admittance_displacement_limit")) {
+    node_->declare_parameter(
+      "admittance_displacement_limit",
+      std::vector<double>{0.01, 0.01, 0.015, 0.05, 0.05, 0.03});
+  }
+  if (!node_->has_parameter("admittance_twist_limit")) {
+    node_->declare_parameter(
+      "admittance_twist_limit",
+      std::vector<double>{0.02, 0.02, 0.02, 0.10, 0.10, 0.08});
+  }
   std::string topic_desired_pose;
   std::string topic_desired_twist;
   std::string topic_desired_accel;
   std::vector<double> track_kp;
   std::vector<double> track_ki;
   std::vector<double> track_integral_limit;
+  std::vector<double> admittance_displacement_limit;
+  std::vector<double> admittance_twist_limit;
   node_->get_parameter("topic_desired_pose", topic_desired_pose);
   node_->get_parameter("topic_desired_twist", topic_desired_twist);
   node_->get_parameter("topic_desired_accel", topic_desired_accel);
@@ -121,6 +133,8 @@ AdmittanceController::AdmittanceController(
   node_->get_parameter("pose_smoothing_alpha_angular", pose_smoothing_alpha_angular_);
   node_->get_parameter("enable_wrench_filter", enable_wrench_filter_);
   node_->get_parameter("wrench_filter_tau", wrench_filter_tau_);
+  node_->get_parameter("admittance_displacement_limit", admittance_displacement_limit);
+  node_->get_parameter("admittance_twist_limit", admittance_twist_limit);
 
   // 平滑系数约束到[0,1]：0=完全沿用上一次输出(最平滑但滞后最大)，1=不过滤(最跟手)
   if (twist_smoothing_alpha_linear_ < 0.0) twist_smoothing_alpha_linear_ = 0.0;
@@ -136,10 +150,18 @@ AdmittanceController::AdmittanceController(
   if (track_kp.size() != 6 || track_ki.size() != 6 || track_integral_limit.size() != 6) {
     throw std::runtime_error("track_kp/track_ki/track_integral_limit must be length 6");
   }
+  if (admittance_displacement_limit.size() != 6 || admittance_twist_limit.size() != 6) {
+    throw std::runtime_error(
+      "admittance_displacement_limit/admittance_twist_limit must be length 6");
+  }
   for (int i = 0; i < 6; ++i) {
     track_kp_(i) = track_kp[static_cast<size_t>(i)];
     track_ki_(i) = track_ki[static_cast<size_t>(i)];
     track_integral_limit_(i) = std::abs(track_integral_limit[static_cast<size_t>(i)]);
+    admittance_displacement_limit_(i) =
+      std::abs(admittance_displacement_limit[static_cast<size_t>(i)]);
+    admittance_twist_limit_(i) =
+      std::abs(admittance_twist_limit[static_cast<size_t>(i)]);
   }
 
   // --- 订阅机械臂状态、力传感器等话题 ---
@@ -332,6 +354,7 @@ void AdmittanceController::compute_admittance()
   // 积分虚拟状态：xdd_a -> xd_a -> x_a
   admittance_twist_ += admittance_virtual_acc * dt;
   admittance_displacement_ += admittance_twist_ * dt;
+  limit_admittance_state();
 
   // 工具坐标系导纳位姿输出：
   // admittance_displacement_定义在admittance_frame_中，发布前叠加到参考工具位姿并转换回base_frame_表达。
@@ -432,6 +455,29 @@ void AdmittanceController::apply_twist_smoothing(const Vector6d & raw_twist)
     arm_desired_twist_ = raw_twist;
     arm_desired_twist_filtered_ = raw_twist;
     output_smoothing_initialized_ = true;
+  }
+}
+
+void AdmittanceController::limit_admittance_state()
+{
+  for (int i = 0; i < 6; ++i) {
+    if (admittance_displacement_limit_(i) > 0.0) {
+      if (admittance_displacement_(i) > admittance_displacement_limit_(i)) {
+        admittance_displacement_(i) = admittance_displacement_limit_(i);
+        admittance_twist_(i) = 0.0;
+      } else if (admittance_displacement_(i) < -admittance_displacement_limit_(i)) {
+        admittance_displacement_(i) = -admittance_displacement_limit_(i);
+        admittance_twist_(i) = 0.0;
+      }
+    }
+
+    if (admittance_twist_limit_(i) > 0.0) {
+      if (admittance_twist_(i) > admittance_twist_limit_(i)) {
+        admittance_twist_(i) = admittance_twist_limit_(i);
+      } else if (admittance_twist_(i) < -admittance_twist_limit_(i)) {
+        admittance_twist_(i) = -admittance_twist_limit_(i);
+      }
+    }
   }
 }
 
