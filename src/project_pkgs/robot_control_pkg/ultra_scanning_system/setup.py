@@ -35,6 +35,7 @@ setup(
                 'contact_scan_trajectory_node = '
                 'ultra_scanning_system.contact_scan_trajectory_node:main'
             ),
+            'scan_pose_mux = ultra_scanning_system.scan_pose_mux:main',
         ],
     },
 )

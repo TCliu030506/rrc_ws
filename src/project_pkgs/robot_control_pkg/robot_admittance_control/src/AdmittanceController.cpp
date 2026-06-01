@@ -103,11 +103,15 @@ AdmittanceController::AdmittanceController(
     node_->declare_parameter("wrench_filter_tau", 0.015);
   }
   if (!node_->has_parameter("admittance_displacement_limit")) {
+    // 工具坐标系下的柔顺位移上限：
+    // [dx, dy, dz, drx, dry, drz]，单位分别为 m 和 rad。
     node_->declare_parameter(
       "admittance_displacement_limit",
       std::vector<double>{0.01, 0.01, 0.015, 0.05, 0.05, 0.03});
   }
   if (!node_->has_parameter("admittance_twist_limit")) {
+    // 工具坐标系下的柔顺速度上限：
+    // [vx, vy, vz, wx, wy, wz]，单位分别为 m/s 和 rad/s。
     node_->declare_parameter(
       "admittance_twist_limit",
       std::vector<double>{0.02, 0.02, 0.02, 0.10, 0.10, 0.08});
@@ -158,6 +162,7 @@ AdmittanceController::AdmittanceController(
     track_kp_(i) = track_kp[static_cast<size_t>(i)];
     track_ki_(i) = track_ki[static_cast<size_t>(i)];
     track_integral_limit_(i) = std::abs(track_integral_limit[static_cast<size_t>(i)]);
+    // 限幅参数取绝对值，避免 YAML 中误填负数导致限幅逻辑反向。
     admittance_displacement_limit_(i) =
       std::abs(admittance_displacement_limit[static_cast<size_t>(i)]);
     admittance_twist_limit_(i) =
@@ -354,6 +359,7 @@ void AdmittanceController::compute_admittance()
   // 积分虚拟状态：xdd_a -> xd_a -> x_a
   admittance_twist_ += admittance_virtual_acc * dt;
   admittance_displacement_ += admittance_twist_ * dt;
+  // 积分后立即限幅，避免未接触或接触丢失时虚拟位移持续累积。
   limit_admittance_state();
 
   // 工具坐标系导纳位姿输出：
@@ -460,6 +466,8 @@ void AdmittanceController::apply_twist_smoothing(const Vector6d & raw_twist)
 
 void AdmittanceController::limit_admittance_state()
 {
+  // 导纳状态定义在工具坐标系下，因此这里按工具局部 6 个自由度逐轴限制。
+  // 位移撞到边界时同时清零该轴虚拟速度，避免下一周期继续顶着边界积分。
   for (int i = 0; i < 6; ++i) {
     if (admittance_displacement_limit_(i) > 0.0) {
       if (admittance_displacement_(i) > admittance_displacement_limit_(i)) {

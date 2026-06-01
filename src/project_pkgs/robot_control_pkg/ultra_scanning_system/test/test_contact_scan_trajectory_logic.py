@@ -6,6 +6,7 @@ from ultra_scanning_system.contact_scan_trajectory_logic import (
     compute_approach_axis,
     compute_retract_pose,
     normal_force,
+    ramp_toward,
     should_enter_contact,
     should_fault_by_force,
     should_fault_by_search_distance,
@@ -56,6 +57,14 @@ def test_contact_and_fault_predicates_are_threshold_based():
     assert not should_fault_by_search_distance(0.049, max_search_distance=0.05)
 
 
+def test_ramp_toward_limits_force_reference_change_per_cycle():
+    assert math.isclose(ramp_toward(1.0, 5.0, max_rate=2.0, dt=0.5), 2.0)
+    assert math.isclose(ramp_toward(4.8, 5.0, max_rate=2.0, dt=0.5), 5.0)
+    assert math.isclose(ramp_toward(5.0, 1.0, max_rate=2.0, dt=0.5), 4.0)
+    assert math.isclose(ramp_toward(5.0, 1.0, max_rate=0.0, dt=0.5), 1.0)
+    assert math.isclose(ramp_toward(1.0, 5.0, max_rate=2.0, dt=0.0), 1.0)
+
+
 def test_compute_retract_pose_moves_opposite_final_approach_axis():
     final_pose = ((0.4, -0.1, 0.2), (0.0, 0.0, 0.0, 1.0))
 
@@ -72,6 +81,7 @@ def test_compute_retract_pose_moves_opposite_final_approach_axis():
 def test_state_enum_has_expected_order():
     assert ContactScanState.APPROACH.value == 'approach'
     assert ContactScanState.PRE_CONTACT.value == 'pre_contact'
+    assert ContactScanState.CONTACT_SETTLE.value == 'contact_settle'
     assert ContactScanState.CONTACT_SCAN.value == 'contact_scan'
     assert ContactScanState.RETRACT.value == 'retract'
     assert ContactScanState.FINISHED.value == 'finished'

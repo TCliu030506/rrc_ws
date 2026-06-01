@@ -18,6 +18,7 @@
   <exec_depend>robot_admittance_control</exec_depend>
   <exec_depend>robot_trajectory_planner</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
   <exec_depend>tool_gravity_compensation</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>ultra_scanning_sim</exec_depend>

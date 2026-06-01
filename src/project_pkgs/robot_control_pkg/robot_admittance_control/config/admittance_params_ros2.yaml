@@ -11,17 +11,23 @@ admittance_controller_node:
     topic_desired_twist: "/desired_twist"
     topic_desired_accel: "/desired_accel"
 
-    enable_wrench_filter: false
-    wrench_filter_tau: 0.00005
+    # 外力力矩滤波参数设置，启用后可以平滑外力输入，减少噪声对导纳控制的影响，但会增加响应延迟。
+    enable_wrench_filter: true
+    wrench_filter_tau: 0.001 # 值越大滤波越强，响应越慢。0.01 是比较常见的值，0.001 是较弱的滤波，0.0001 是非常弱的滤波。
 
-    admittance_displacement_limit: [0.010, 0.010, 0.015, 0.050, 0.050, 0.030]
-    admittance_twist_limit: [0.020, 0.020, 0.020, 0.100, 0.100, 0.080]
+    # 工具坐标系导纳虚拟状态限幅：
+    # displacement=[dx, dy, dz, drx, dry, drz]，单位 m/rad。
+    # twist=[vx, vy, vz, wx, wy, wz]，单位 m/s 和 rad/s。
+    # 作用是在接触丢失、未接触或力误差持续存在时限制柔顺补偿累积。
+    admittance_displacement_limit: [0.04, 0.04, 0.04, 0.20, 0.20, 0.10]
+    admittance_twist_limit: [0.02, 0.02, 0.01, 0.050, 0.050, 0.020]
 
+    # 输出平滑参数设置，启用后可以平滑输出，减少噪声对导纳控制的影响，但会增加响应延迟。
     enable_output_smoothing: true
-    pose_smoothing_alpha_linear: 0.85
-    pose_smoothing_alpha_angular: 0.80
-    twist_smoothing_alpha_linear: 0.80
-    twist_smoothing_alpha_angular: 0.80
+    pose_smoothing_alpha_linear: 0.990 # 位置命令平滑系数；越大响应越快，越小越平滑
+    pose_smoothing_alpha_angular: 0.95
+    twist_smoothing_alpha_linear: 0.95
+    twist_smoothing_alpha_angular: 0.95
 
     base_frame: "base"
     arm_base_frame: "base"
@@ -106,21 +112,21 @@ admittance_controller_node:
     # 原地导纳参数设置
     mass_arm: [400.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                0.0, 400.0, 0.0, 0.0, 0.0, 0.0,
-               0.0, 0.0, 40.0, 0.0, 0.0, 0.0,
-               0.0, 0.0, 0.0, 10.0, 0.0, 0.0,
-               0.0, 0.0, 0.0, 0.0, 10.0, 0.0,
+               0.0, 0.0, 0.5, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.05, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.05, 0.0,
                0.0, 0.0, 0.0, 0.0, 0.0, 10.2]
     damping_arm: [8000.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                   0.0, 8000.0, 0.0, 0.0, 0.0, 0.0,
-                  0.0, 0.0, 400.0, 0.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0, 500.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0, 0.0, 500.0, 0.0,
+                  0.0, 0.0, 3000.0, 0.0, 0.0, 0.0,
+                  0.0, 0.0, 0.0, 30.0, 0.0, 0.0,
+                  0.0, 0.0, 0.0, 0.0, 30.0, 0.0,
                   0.0, 0.0, 0.0, 0.0, 0.0, 500.0]
     stiffness_arm: [4000.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                     0.0, 4000.0, 0.0, 0.0, 0.0, 0.0,
-                    0.0, 0.0, 200.0, 0.0, 0.0, 0.0,
-                    0.0, 0.0, 0.0, 2000.0, 0.0, 0.0,
-                    0.0, 0.0, 0.0, 0.0, 2000.0, 0.0,
+                    0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.1, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.1, 0.0,
                     0.0, 0.0, 0.0, 0.0, 0.0, 1000.0]
 
     # # 自动扫查测试参数设置

@@ -140,8 +140,8 @@ protected:
   bool wrench_filter_initialized_{false};         // 外力滤波状态是否已初始化
   Vector6d wrench_external_filtered_;             // 外力滤波后结果
   rclcpp::Time last_wrench_filter_time_;          // 上一次外力滤波时间
-  Vector6d admittance_displacement_limit_;        // 工具坐标系导纳位移限幅
-  Vector6d admittance_twist_limit_;               // 工具坐标系导纳速度限幅
+  Vector6d admittance_displacement_limit_;        // 工具坐标系导纳位移限幅，防止补偿量无限累积
+  Vector6d admittance_twist_limit_;               // 工具坐标系导纳速度限幅，防止接触瞬态速度过大
 
   // --- 工作空间限制 ---
   Vector6d workspace_limits_; // 工作空间边界
@@ -192,7 +192,7 @@ protected:
   Vector6d filter_external_wrench(const Vector6d & raw_wrench);
   void apply_pose_smoothing(const Vector3d & raw_position, const Quaterniond & raw_orientation);
   void apply_twist_smoothing(const Vector6d & raw_twist);
-  void limit_admittance_state();
+  void limit_admittance_state(); // 对虚拟导纳位移和速度做逐轴限幅
 
   // --- 回调函数 ---
   void pose_arm_callback(const geometry_msgs::msg::Pose::SharedPtr msg);         // 机械臂末端位姿回调

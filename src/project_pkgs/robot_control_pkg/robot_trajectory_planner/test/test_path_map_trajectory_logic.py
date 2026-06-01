@@ -5,7 +5,10 @@ import pytest
 from robot_trajectory_planner.path_map_trajectory_logic import (
     PathMapTrajectory,
     PoseState,
+    format_path_map_lines,
+    offset_path_points_along_tool_z,
     parse_path_map_lines,
+    quat_to_rotvec,
     resample_waypoints,
     rotvec_to_quat_xyzw,
 )
@@ -41,6 +44,43 @@ def test_rotvec_to_quat_xyzw_normalizes_zero_and_pi_rotation():
     assert rotvec_to_quat_xyzw((0.0, 0.0, math.pi)) == pytest.approx(
         (0.0, 0.0, 1.0, 0.0),
         abs=1e-12,
+    )
+    assert quat_to_rotvec(rotvec_to_quat_xyzw((0.0, math.pi / 2.0, 0.0))) == (
+        pytest.approx(0.0),
+        pytest.approx(math.pi / 2.0),
+        pytest.approx(0.0),
+    )
+
+
+def test_offset_path_points_moves_each_point_along_its_local_z_axis():
+    points = parse_path_map_lines([
+        '0.0 0.0 0.0 0.0 0.0 0.0',
+        f'1.0 2.0 3.0 0.0 {math.pi / 2.0} 0.0',
+    ])
+
+    offset_points = offset_path_points_along_tool_z(points, offset_distance=0.1)
+
+    assert offset_points[0].position == pytest.approx((0.0, 0.0, 0.1))
+    assert offset_points[1].position == pytest.approx((1.1, 2.0, 3.0))
+    assert offset_points[0].orientation_xyzw == pytest.approx(
+        points[0].orientation_xyzw
+    )
+    assert offset_points[1].orientation_xyzw == pytest.approx(
+        points[1].orientation_xyzw
+    )
+
+
+def test_format_path_map_lines_writes_position_and_rotation_vector():
+    points = parse_path_map_lines([
+        f'1.0 2.0 3.0 0.0 {math.pi / 2.0} 0.0',
+    ])
+
+    lines = format_path_map_lines(points)
+
+    fields = lines[0].split()
+    assert [float(value) for value in fields[:3]] == pytest.approx([1.0, 2.0, 3.0])
+    assert [float(value) for value in fields[3:]] == pytest.approx(
+        [0.0, math.pi / 2.0, 0.0]
     )
 
 

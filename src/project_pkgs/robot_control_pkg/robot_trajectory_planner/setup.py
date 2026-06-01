@@ -30,6 +30,7 @@ setup(
             'scan_cylindrical_surface_node = robot_trajectory_planner.scan_cylindrical_surface_node:main',
             'current_pose_hold_node = robot_trajectory_planner.current_pose_hold_node:main',
             'path_map_trajectory_node = robot_trajectory_planner.path_map_trajectory_node:main',
+            'path_map_offset_tool = robot_trajectory_planner.path_map_offset_tool:main',
         ],
     },
 )

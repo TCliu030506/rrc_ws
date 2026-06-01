@@ -1,17 +1,20 @@
 from launch import LaunchDescription
 from launch.actions import (
-    DeclareLaunchArgument,
     IncludeLaunchDescription,
     SetEnvironmentVariable,
     TimerAction,
 )
-from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
+from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
+
+# 全局开关：后续调试时优先修改这里，避免通过 ros2 launch 参数层层传递。
+GLOBAL_LOG_LEVEL = 'WARN'
+ROBOT_IP = '192.168.1.102'
+ENABLE_ADMITTANCE = True
+TRAJECTORY_PLANNER = 'contact_scan'  # current_pose_hold, path_map, contact_scan
 
 # Frames
 BASE_FRAME = 'base'
@@ -31,8 +34,45 @@ DESIRED_TWIST_TOPIC = '/scan/desired_twist'
 DESIRED_ACCEL_TOPIC = '/scan/desired_accel'
 
 ASM_EE_CMD_POSE_TOPIC = '/admittance/asm_ee_cmd_pose'
+SERVO_ASM_EE_CMD_POSE_TOPIC = '/servo/asm_ee_cmd_pose'
 TOOL_CMD_POSE_TOPIC = '/arm_desired_pose_tool0'
 CONTROL_WRENCH_TOPIC = '/arm_admittance_control/control_wrench'
+
+# Path-map trajectory 参数
+PATH_MAP_PUBLISH_RATE = 100.0
+PATH_MAP_MAX_LINEAR_SPEED = 0.01
+PATH_MAP_MAX_ANGULAR_SPEED = 0.05
+PATH_MAP_LOOP_PATH = False
+PATH_MAP_ENABLE_RESAMPLING = True
+PATH_MAP_MAX_LINEAR_STEP = 0.001
+PATH_MAP_MAX_ANGULAR_STEP = 0.01
+
+# Contact scan 参数
+CONTACT_SCAN_FORCE_AXIS = 'z'
+CONTACT_SCAN_FORCE_AXIS_SIGN = -1.0
+CONTACT_SCAN_APPROACH_AXIS_SIGN = 1.0
+CONTACT_SCAN_CONTACT_FORCE_THRESHOLD = 5.0
+CONTACT_SCAN_TARGET_CONTACT_FORCE = 20.0
+CONTACT_SCAN_FORCE_RAMP_RATE = 0.5
+CONTACT_SCAN_ZERO_TORQUE_RX_RY_ENABLED = True
+CONTACT_SCAN_TARGET_TORQUE_RX = 0.0
+CONTACT_SCAN_TARGET_TORQUE_RY = 0.0
+CONTACT_SCAN_TORQUE_RAMP_RATE = 0.05
+CONTACT_SCAN_SETTLE_DURATION = 0.5
+CONTACT_SCAN_SETTLE_FORCE_TOLERANCE = 8.0
+CONTACT_SCAN_MAX_CONTACT_FORCE = 50.0
+CONTACT_SCAN_MAX_SEARCH_DISTANCE = 0.1
+CONTACT_SCAN_PRE_CONTACT_SPEED = 0.0001
+CONTACT_SCAN_RETRACT_DISTANCE = 0.05
+CONTACT_SCAN_STATE_TOPIC = '/contact_scan/state'
+
+# 一体化 servoL 执行节点参数：内部完成 asm_ee_site -> tool0 的 TF 转换。
+SERVO_ENABLE_DEBUG_POSE_PUBLISH = True
+SERVO_SPEED = 0.15
+SERVO_ACCELERATION = 0.1
+SERVO_LOOKAHEAD_TIME = 0.1
+SERVO_GAIN = 300.0
+SERVO_TF_LOOKUP_TIMEOUT_SEC = 0.05
 
 
 def _launch_file(package_name: str, *path_parts: str) -> PythonLaunchDescriptionSource:
@@ -45,45 +85,11 @@ def _launch_file(package_name: str, *path_parts: str) -> PythonLaunchDescription
 
 
 def generate_launch_description():
-    global_log_level = LaunchConfiguration('global_log_level')
-    ur_type = LaunchConfiguration('ur_type')
-    robot_ip = LaunchConfiguration('robot_ip')
-    forcesensorport = LaunchConfiguration('forcesensorport')
-    enable_admittance = LaunchConfiguration('enable_admittance')
-    trajectory_planner = LaunchConfiguration('trajectory_planner')
-    path_map_file = LaunchConfiguration('path_map_file')
-    path_map_publish_rate = LaunchConfiguration('path_map_publish_rate')
-    path_map_max_linear_speed = LaunchConfiguration('path_map_max_linear_speed')
-    path_map_max_angular_speed = LaunchConfiguration('path_map_max_angular_speed')
-    path_map_loop_path = LaunchConfiguration('path_map_loop_path')
-    path_map_enable_resampling = LaunchConfiguration('path_map_enable_resampling')
-    path_map_max_linear_step = LaunchConfiguration('path_map_max_linear_step')
-    path_map_max_angular_step = LaunchConfiguration('path_map_max_angular_step')
-    contact_scan_force_axis = LaunchConfiguration('contact_scan_force_axis')
-    contact_scan_force_axis_sign = LaunchConfiguration(
-        'contact_scan_force_axis_sign',
-    )
-    contact_scan_approach_axis_sign = LaunchConfiguration(
-        'contact_scan_approach_axis_sign',
-    )
-    contact_scan_contact_force_threshold = LaunchConfiguration(
-        'contact_scan_contact_force_threshold',
-    )
-    contact_scan_target_contact_force = LaunchConfiguration(
-        'contact_scan_target_contact_force',
-    )
-    contact_scan_max_contact_force = LaunchConfiguration(
-        'contact_scan_max_contact_force',
-    )
-    contact_scan_max_search_distance = LaunchConfiguration(
-        'contact_scan_max_search_distance',
-    )
-    contact_scan_pre_contact_speed = LaunchConfiguration(
-        'contact_scan_pre_contact_speed',
-    )
-    contact_scan_retract_distance = LaunchConfiguration(
-        'contact_scan_retract_distance',
-    )
+    path_map_file = PathJoinSubstitution([
+        FindPackageShare('robot_trajectory_planner'),
+        'data',
+        'path_map_offset.txt',
+    ])
 
     hardware_tf_launch = IncludeLaunchDescription(
         _launch_file(
@@ -91,25 +97,6 @@ def generate_launch_description():
             'launch',
             'ultra_scanning_hardware_tf.launch.py',
         ),
-        launch_arguments={
-            'ur_type': ur_type,
-            'robot_ip': robot_ip,
-            'launch_rviz': 'false',
-            'asm_parent_frame': TOOL_FRAME,
-            'asm_tf_publish_rate': '50.0',
-        }.items(),
-    )
-
-    force_sensor_launch = IncludeLaunchDescription(
-        _launch_file('force_sensor', 'launch', 'force_sensor_axis_6.launch.py'),
-        launch_arguments={
-            'forcesensorport': forcesensorport,
-            'pubrate': '200',
-            'baudrate': '115200',
-            'frame_id': 'asm_force_sensor_link',
-            'topic_name': RAW_WRENCH_TOPIC,
-            'auto_zero': 'false',
-        }.items(),
     )
 
     dynamic_gravity_compensation_node = Node(
@@ -147,21 +134,6 @@ def generate_launch_description():
         }],
     )
 
-    ee_state_from_tf_node = Node(
-        package='ultra_scanning_sim',
-        executable='ee_state_from_tf_node',
-        name='asm_ee_state_from_tf_node',
-        output='screen',
-        parameters=[{
-            'source_frame': BASE_FRAME,
-            'target_frame': ASM_EE_FRAME,
-            'output_pose_topic': EE_POSE_TOPIC,
-            'output_twist_topic': EE_TWIST_TOPIC,
-            'publish_rate': 50.0,
-            'max_angular_speed': 10.0,
-        }],
-    )
-
     current_pose_hold_node = Node(
         package='robot_trajectory_planner',
         executable='current_pose_hold_node',
@@ -187,28 +159,13 @@ def generate_launch_description():
             'topic_desired_twist': DESIRED_TWIST_TOPIC,
             'topic_desired_accel': DESIRED_ACCEL_TOPIC,
             'path_file': path_map_file,
-            'publish_rate': ParameterValue(path_map_publish_rate, value_type=float),
-            'max_linear_speed': ParameterValue(
-                path_map_max_linear_speed,
-                value_type=float,
-            ),
-            'max_angular_speed': ParameterValue(
-                path_map_max_angular_speed,
-                value_type=float,
-            ),
-            'loop_path': ParameterValue(path_map_loop_path, value_type=bool),
-            'enable_path_resampling': ParameterValue(
-                path_map_enable_resampling,
-                value_type=bool,
-            ),
-            'max_path_linear_step': ParameterValue(
-                path_map_max_linear_step,
-                value_type=float,
-            ),
-            'max_path_angular_step': ParameterValue(
-                path_map_max_angular_step,
-                value_type=float,
-            ),
+            'publish_rate': PATH_MAP_PUBLISH_RATE,
+            'max_linear_speed': PATH_MAP_MAX_LINEAR_SPEED,
+            'max_angular_speed': PATH_MAP_MAX_ANGULAR_SPEED,
+            'loop_path': PATH_MAP_LOOP_PATH,
+            'enable_path_resampling': PATH_MAP_ENABLE_RESAMPLING,
+            'max_path_linear_step': PATH_MAP_MAX_LINEAR_STEP,
+            'max_path_angular_step': PATH_MAP_MAX_ANGULAR_STEP,
         }],
     )
 
@@ -218,238 +175,133 @@ def generate_launch_description():
         name='contact_scan_trajectory_node',
         output='screen',
         parameters=[{
+            # contact_scan 节点负责上层阶段状态机：
+            # 接近、预接触搜索、接触扫查、撤离和故障停机。
             'current_pose_topic': EE_POSE_TOPIC,
             'compensated_wrench_topic': COMPENSATED_WRENCH_TOPIC,
             'topic_desired_pose': DESIRED_POSE_TOPIC,
             'topic_desired_twist': DESIRED_TWIST_TOPIC,
             'topic_desired_accel': DESIRED_ACCEL_TOPIC,
             'topic_control_wrench': CONTROL_WRENCH_TOPIC,
+            'state_topic': CONTACT_SCAN_STATE_TOPIC,
             'control_wrench_frame': ASM_EE_FRAME,
             'path_file': path_map_file,
-            'publish_rate': ParameterValue(
-                path_map_publish_rate,
-                value_type=float,
-            ),
-            'max_linear_speed': ParameterValue(
-                path_map_max_linear_speed,
-                value_type=float,
-            ),
-            'max_angular_speed': ParameterValue(
-                path_map_max_angular_speed,
-                value_type=float,
-            ),
-            'max_path_linear_step': ParameterValue(
-                path_map_max_linear_step,
-                value_type=float,
-            ),
-            'max_path_angular_step': ParameterValue(
-                path_map_max_angular_step,
-                value_type=float,
-            ),
-            'force_axis': contact_scan_force_axis,
-            'force_axis_sign': ParameterValue(
-                contact_scan_force_axis_sign,
-                value_type=float,
-            ),
-            'approach_axis_sign': ParameterValue(
-                contact_scan_approach_axis_sign,
-                value_type=float,
-            ),
-            'contact_force_threshold': ParameterValue(
-                contact_scan_contact_force_threshold,
-                value_type=float,
-            ),
-            'target_contact_force': ParameterValue(
-                contact_scan_target_contact_force,
-                value_type=float,
-            ),
-            'max_contact_force': ParameterValue(
-                contact_scan_max_contact_force,
-                value_type=float,
-            ),
-            'max_search_distance': ParameterValue(
-                contact_scan_max_search_distance,
-                value_type=float,
-            ),
-            'pre_contact_speed': ParameterValue(
-                contact_scan_pre_contact_speed,
-                value_type=float,
-            ),
-            'retract_distance': ParameterValue(
-                contact_scan_retract_distance,
-                value_type=float,
-            ),
+            'publish_rate': PATH_MAP_PUBLISH_RATE,
+            'max_linear_speed': PATH_MAP_MAX_LINEAR_SPEED,
+            'max_angular_speed': PATH_MAP_MAX_ANGULAR_SPEED,
+            'max_path_linear_step': PATH_MAP_MAX_LINEAR_STEP,
+            'max_path_angular_step': PATH_MAP_MAX_ANGULAR_STEP,
+            # 力轴和符号以当前项目实测为准，用于把“压紧力增大”统一为正。
+            'force_axis': CONTACT_SCAN_FORCE_AXIS,
+            'force_axis_sign': CONTACT_SCAN_FORCE_AXIS_SIGN,
+            'approach_axis_sign': CONTACT_SCAN_APPROACH_AXIS_SIGN,
+            # 预接触搜索和安全阈值。实机调试时优先降低目标力和搜索速度。
+            'contact_force_threshold': CONTACT_SCAN_CONTACT_FORCE_THRESHOLD,
+            'target_contact_force': CONTACT_SCAN_TARGET_CONTACT_FORCE,
+            'force_ramp_rate': CONTACT_SCAN_FORCE_RAMP_RATE,
+            'zero_torque_rx_ry_enabled': CONTACT_SCAN_ZERO_TORQUE_RX_RY_ENABLED,
+            'target_torque_rx': CONTACT_SCAN_TARGET_TORQUE_RX,
+            'target_torque_ry': CONTACT_SCAN_TARGET_TORQUE_RY,
+            'torque_ramp_rate': CONTACT_SCAN_TORQUE_RAMP_RATE,
+            'contact_settle_duration': CONTACT_SCAN_SETTLE_DURATION,
+            'contact_settle_force_tolerance': CONTACT_SCAN_SETTLE_FORCE_TOLERANCE,
+            'max_contact_force': CONTACT_SCAN_MAX_CONTACT_FORCE,
+            'max_search_distance': CONTACT_SCAN_MAX_SEARCH_DISTANCE,
+            'pre_contact_speed': CONTACT_SCAN_PRE_CONTACT_SPEED,
+            'retract_distance': CONTACT_SCAN_RETRACT_DISTANCE,
         }],
     )
 
-    admittance_controller_launch = IncludeLaunchDescription(
-        _launch_file(
-            'robot_admittance_control',
-            'launch',
-            'arm_admittance_controller.launch.py',
-        ),
-        launch_arguments={
-            'pose_topic_arm': EE_POSE_TOPIC,
-            'twist_topic_arm': EE_TWIST_TOPIC,
-            'wrench_ext_topic_arm': COMPENSATED_WRENCH_TOPIC,
-            'wrench_ctr_topic_arm': CONTROL_WRENCH_TOPIC,
-            'cmd_topic_arm': '/UR5/desired_twist',
-            'pose_cmd_topic_arm': ASM_EE_CMD_POSE_TOPIC,
-            'desired_pose_topic': DESIRED_POSE_TOPIC,
-            'desired_twist_topic': DESIRED_TWIST_TOPIC,
-            'desired_accel_topic': DESIRED_ACCEL_TOPIC,
-            'enable_output_smoothing': 'true',
-            'twist_smoothing_alpha_linear': '0.03',
-            'twist_smoothing_alpha_angular': '0.01',
-            'pose_smoothing_alpha_linear': '0.03',
-            'pose_smoothing_alpha_angular': '0.01',
-            'admittance_params_file': PathJoinSubstitution([
+    admittance_controller_node = Node(
+        package='robot_admittance_control',
+        executable='admittance_controller_node',
+        name='admittance_controller_node',
+        output='screen',
+        parameters=[
+            PathJoinSubstitution([
                 FindPackageShare('robot_admittance_control'),
                 'config',
                 'admittance_params_ros2.yaml',
             ]),
-        }.items(),
+            {
+                'topic_arm_pose': EE_POSE_TOPIC,
+                'topic_arm_twist': EE_TWIST_TOPIC,
+                'topic_external_wrench': COMPENSATED_WRENCH_TOPIC,
+                'topic_control_wrench': CONTROL_WRENCH_TOPIC,
+                'topic_arm_command': '/UR5/desired_twist',
+                'topic_arm_pose_command': ASM_EE_CMD_POSE_TOPIC,
+                'topic_desired_pose': DESIRED_POSE_TOPIC,
+                'topic_desired_twist': DESIRED_TWIST_TOPIC,
+                'topic_desired_accel': DESIRED_ACCEL_TOPIC,
+            },
+        ],
     )
 
-    asm_ee_command_transform_node = Node(
+    scan_pose_mux_node = Node(
         package='ultra_scanning_system',
-        executable='asm_ee_command_transform',
-        name='asm_ee_command_transform_node',
+        executable='scan_pose_mux',
+        name='scan_pose_mux',
         output='screen',
         parameters=[{
-            'input_pose_topic': ASM_EE_CMD_POSE_TOPIC,
-            'output_pose_topic': TOOL_CMD_POSE_TOPIC,
-            'control_base_frame': BASE_FRAME,
-            'tool_frame': TOOL_FRAME,
-            'controlled_frame': ASM_EE_FRAME,
-            'tf_lookup_timeout_sec': 0.05,
+            'direct_pose_topic': DESIRED_POSE_TOPIC,
+            'admittance_pose_topic': ASM_EE_CMD_POSE_TOPIC,
+            'output_pose_topic': SERVO_ASM_EE_CMD_POSE_TOPIC,
+            'state_topic': CONTACT_SCAN_STATE_TOPIC,
+            'direct_states': ['approach', 'pre_contact'],
         }],
     )
 
-    rtde_servol_pose_controller_launch = IncludeLaunchDescription(
-        _launch_file(
-            'ur5_rtde_control',
-            'launch',
-            'rtde_servol_pose_controller.launch.py',
-        ),
-        launch_arguments={
-            'robot_ip': robot_ip,
-            'topic_cmd_pose': TOOL_CMD_POSE_TOPIC,
-        }.items(),
+    rtde_servol_frame_pose_controller_node = Node(  # noqa: F841
+        package='ur5_rtde_control',
+        executable='rtde_servol_frame_pose_controller_node',
+        name='rtde_servol_frame_pose_controller_node',
+        output='screen',
+        parameters=[{
+            'robot_ip': ROBOT_IP,
+            'topic_cmd_pose': SERVO_ASM_EE_CMD_POSE_TOPIC,
+            # 当前 /servo/asm_ee_cmd_pose 是 Pose，无 header，
+            # 因此用参数声明它是 base 坐标系下 asm_ee_site 的目标位姿。
+            'input_pose_is_stamped': False,
+            'input_pose_frame': BASE_FRAME,
+            'base_frame': BASE_FRAME,
+            'tool_frame': TOOL_FRAME,
+            'controlled_frame': ASM_EE_FRAME,
+            'tf_lookup_timeout_sec': SERVO_TF_LOOKUP_TIMEOUT_SEC,
+            'speed': SERVO_SPEED,
+            'acceleration': SERVO_ACCELERATION,
+            'lookahead_time': SERVO_LOOKAHEAD_TIME,
+            'gain': SERVO_GAIN,
+            'enable_debug_pose_publish': SERVO_ENABLE_DEBUG_POSE_PUBLISH,
+            'debug_pose_topic': TOOL_CMD_POSE_TOPIC,
+        }],
     )
 
-    return LaunchDescription([
-        DeclareLaunchArgument('global_log_level', default_value='WARN'),
-        DeclareLaunchArgument('ur_type', default_value='ur5'),
-        DeclareLaunchArgument('robot_ip', default_value='192.168.1.102'),
-        DeclareLaunchArgument('forcesensorport', default_value='/dev/ttyUSB0'),
-        DeclareLaunchArgument('enable_admittance', default_value='true'),
-        DeclareLaunchArgument(
-            'trajectory_planner',
-            default_value='current_pose_hold',
-            description='Trajectory source: current_pose_hold, path_map, or contact_scan.',
-        ),
-        DeclareLaunchArgument(
-            'path_map_file',
-            default_value='',
-            description=(
-                'Path-map file for path_map_trajectory_node. Empty uses '
-                'robot_trajectory_planner/share/data/path_map.txt.'
-            ),
-        ),
-        DeclareLaunchArgument('path_map_publish_rate', default_value='50.0'),
-        DeclareLaunchArgument('path_map_max_linear_speed', default_value='0.005'),
-        DeclareLaunchArgument('path_map_max_angular_speed', default_value='0.05'),
-        DeclareLaunchArgument('path_map_loop_path', default_value='false'),
-        DeclareLaunchArgument('path_map_enable_resampling', default_value='true'),
-        DeclareLaunchArgument('path_map_max_linear_step', default_value='0.001'),
-        DeclareLaunchArgument('path_map_max_angular_step', default_value='0.01'),
-        DeclareLaunchArgument('contact_scan_force_axis', default_value='z'),
-        DeclareLaunchArgument('contact_scan_force_axis_sign', default_value='1.0'),
-        DeclareLaunchArgument(
-            'contact_scan_approach_axis_sign',
-            default_value='1.0',
-        ),
-        DeclareLaunchArgument(
-            'contact_scan_contact_force_threshold',
-            default_value='2.0',
-        ),
-        DeclareLaunchArgument(
-            'contact_scan_target_contact_force',
-            default_value='6.0',
-        ),
-        DeclareLaunchArgument(
-            'contact_scan_max_contact_force',
-            default_value='12.0',
-        ),
-        DeclareLaunchArgument(
-            'contact_scan_max_search_distance',
-            default_value='0.04',
-        ),
-        DeclareLaunchArgument(
-            'contact_scan_pre_contact_speed',
-            default_value='0.002',
-        ),
-        DeclareLaunchArgument(
-            'contact_scan_retract_distance',
-            default_value='0.04',
-        ),
+    actions = [
         SetEnvironmentVariable(
             'RCUTILS_LOGGING_SEVERITY_THRESHOLD',
-            global_log_level,
+            GLOBAL_LOG_LEVEL,
         ),
-        TimerAction(period=0.0, actions=[force_sensor_launch]),
-        TimerAction(period=1.2, actions=[hardware_tf_launch]),
-        TimerAction(
-            period=2.0,
-            condition=IfCondition(enable_admittance),
-            actions=[force_sensor_motion_node],
-        ),
-        # TimerAction(
-        #     period=2.5,
-        #     condition=IfCondition(enable_admittance),
-        #     actions=[gravity_compensation_node],
-        # ),
-        TimerAction(
-            period=2.5,
-            condition=IfCondition(enable_admittance),
-            actions=[dynamic_gravity_compensation_node],
-        ),
-        TimerAction(period=3.0, actions=[ee_state_from_tf_node]),
-        TimerAction(
-            period=4.5,
-            condition=IfCondition(PythonExpression([
-                "'", trajectory_planner, "' == 'current_pose_hold'",
-            ])),
-            actions=[current_pose_hold_node],
-        ),
-        TimerAction(
-            period=4.5,
-            condition=IfCondition(PythonExpression([
-                "'", trajectory_planner, "' == 'path_map'",
-            ])),
-            actions=[path_map_trajectory_node],
-        ),
-        TimerAction(
-            period=4.5,
-            condition=IfCondition(PythonExpression([
-                "'", trajectory_planner, "' == 'contact_scan'",
-            ])),
-            actions=[contact_scan_trajectory_node],
-        ),
-        TimerAction(
-            period=3.2,
-            condition=IfCondition(enable_admittance),
-            actions=[asm_ee_command_transform_node],
-        ),
-        TimerAction(
-            period=3.2,
-            condition=IfCondition(enable_admittance),
-            actions=[rtde_servol_pose_controller_launch],
-        ),
-        TimerAction(
-            period=4.0,
-            condition=IfCondition(enable_admittance),
-            actions=[admittance_controller_launch],
-        ),
-    ])
+        TimerAction(period=0.0, actions=[hardware_tf_launch]),
+    ]
+
+    if ENABLE_ADMITTANCE:
+        actions.extend([
+            TimerAction(period=2.0, actions=[force_sensor_motion_node]),
+            TimerAction(period=2.5, actions=[dynamic_gravity_compensation_node]),
+            TimerAction(period=3.0, actions=[scan_pose_mux_node]),
+            TimerAction(period=3.2, actions=[rtde_servol_frame_pose_controller_node]),
+            TimerAction(period=3.5, actions=[admittance_controller_node]),
+        ])
+
+    if TRAJECTORY_PLANNER == 'current_pose_hold':
+        actions.append(TimerAction(period=4.5, actions=[current_pose_hold_node]))
+    elif TRAJECTORY_PLANNER == 'path_map':
+        actions.append(TimerAction(period=4.5, actions=[path_map_trajectory_node]))
+    elif TRAJECTORY_PLANNER == 'contact_scan':
+        actions.append(TimerAction(period=4.5, actions=[contact_scan_trajectory_node]))
+    else:
+        raise ValueError(
+            "TRAJECTORY_PLANNER must be 'current_pose_hold', 'path_map', or 'contact_scan'"
+        )
+
+    return LaunchDescription(actions)

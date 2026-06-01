@@ -97,6 +97,21 @@ def rotvec_to_quat_xyzw(rotvec: Sequence[float]) -> QuatXyzw:
     ))
 
 
+def quat_to_rotvec(quat: Sequence[float]) -> Vector3:
+    """将 ROS xyzw 四元数转换为 rotation vector。"""
+    qx, qy, qz, qw = normalize_quat_xyzw(quat)
+    if qw < 0.0:
+        qx, qy, qz, qw = -qx, -qy, -qz, -qw
+
+    vector_norm = math.sqrt(qx * qx + qy * qy + qz * qz)
+    if vector_norm < 1e-12:
+        return (0.0, 0.0, 0.0)
+
+    angle = 2.0 * math.atan2(vector_norm, qw)
+    scale = angle / vector_norm
+    return (qx * scale, qy * scale, qz * scale)
+
+
 def normalize_quat_xyzw(quat: Sequence[float]) -> QuatXyzw:
     """返回单位四元数；输入无效时回退到单位姿态。"""
     x, y, z, w = (float(value) for value in quat)
@@ -104,6 +119,46 @@ def normalize_quat_xyzw(quat: Sequence[float]) -> QuatXyzw:
     if norm < 1e-12:
         return (0.0, 0.0, 0.0, 1.0)
     return (x / norm, y / norm, z / norm, w / norm)
+
+
+def offset_path_points_along_tool_z(
+    points: Sequence[PoseState],
+    *,
+    offset_distance: float,
+) -> list[PathPoint]:
+    """把路径点沿各自姿态的局部 Z 轴偏置给定距离。"""
+    shifted: list[PathPoint] = []
+    for point in points:
+        local_z_in_base = rotate_vector_by_quat(
+            point.orientation_xyzw,
+            (0.0, 0.0, 1.0),
+        )
+        shifted.append(PathPoint(
+            position=(
+                point.position[0] + offset_distance * local_z_in_base[0],
+                point.position[1] + offset_distance * local_z_in_base[1],
+                point.position[2] + offset_distance * local_z_in_base[2],
+            ),
+            orientation_xyzw=normalize_quat_xyzw(point.orientation_xyzw),
+        ))
+    return shifted
+
+
+def format_path_map_lines(points: Sequence[PoseState]) -> list[str]:
+    """把路径点格式化为 path_map.txt 的 x y z rx ry rz 行。"""
+    lines: list[str] = []
+    for point in points:
+        rx, ry, rz = quat_to_rotvec(point.orientation_xyzw)
+        values = (
+            point.position[0],
+            point.position[1],
+            point.position[2],
+            rx,
+            ry,
+            rz,
+        )
+        lines.append(' '.join(f'{value:.9g}' for value in values))
+    return lines
 
 
 def resample_waypoints(
@@ -293,7 +348,10 @@ class PathMapTrajectory:
     def _compute_segment_duration(self, start: PoseState, target: PoseState) -> float:
         """计算同时满足线速度和角速度限制的段持续时间。"""
         linear_time = vector_distance(start.position, target.position) / self._max_linear_speed
-        angular_time = quat_angle(start.orientation_xyzw, target.orientation_xyzw) / self._max_angular_speed
+        angular_time = (
+            quat_angle(start.orientation_xyzw, target.orientation_xyzw) /
+            self._max_angular_speed
+        )
         return max(linear_time, angular_time, self._min_segment_duration)
 
 
@@ -357,6 +415,17 @@ def slerp_quat_xyzw(a: QuatXyzw, b: QuatXyzw, ratio: float) -> QuatXyzw:
         qa[index] * scale_a + qb[index] * scale_b
         for index in range(4)
     ))
+
+
+def rotate_vector_by_quat(quat: Sequence[float], vector: Sequence[float]) -> Vector3:
+    """把局部坐标向量按 xyzw 四元数旋转到基坐标表达。"""
+    q = normalize_quat_xyzw(quat)
+    vx, vy, vz = _as_vector3(vector)
+    rotated = _quat_multiply(
+        _quat_multiply(q, (vx, vy, vz, 0.0)),
+        _quat_inverse(q),
+    )
+    return (rotated[0], rotated[1], rotated[2])
 
 
 def quat_delta_to_rotvec(start: QuatXyzw, end: QuatXyzw, dt_sec: float) -> Vector3:

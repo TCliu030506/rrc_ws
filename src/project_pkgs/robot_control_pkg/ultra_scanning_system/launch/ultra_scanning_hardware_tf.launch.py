@@ -1,19 +1,25 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
+# 硬件和 TF 相关配置集中在这里修改，避免通过 ros2 launch 参数层层转发。
+UR_TYPE = 'ur5'
+ROBOT_IP = '192.168.1.102'
+FORCE_SENSOR_PORT = '/dev/ttyUSB0'
+
+BASE_FRAME = 'base'
+TOOL_FRAME = 'tool0'
+ASM_EE_FRAME = 'asm_ee_site'
+RAW_WRENCH_TOPIC = '/external_force_torque_wrench'
+EE_POSE_TOPIC = '/asm_ee_site/pose'
+EE_TWIST_TOPIC = '/asm_ee_site/twist'
+
+
 def generate_launch_description() -> LaunchDescription:
-    ur_type = LaunchConfiguration('ur_type')
-    robot_ip = LaunchConfiguration('robot_ip')
-    launch_rviz = LaunchConfiguration('launch_rviz')
-
-    asm_parent_frame = LaunchConfiguration('asm_parent_frame')
-    asm_tf_publish_rate = LaunchConfiguration('asm_tf_publish_rate')
-
     ur_driver_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
@@ -23,9 +29,9 @@ def generate_launch_description() -> LaunchDescription:
             ])
         ),
         launch_arguments={
-            'ur_type': ur_type,
-            'robot_ip': robot_ip,
-            'launch_rviz': launch_rviz,
+            'ur_type': UR_TYPE,
+            'robot_ip': ROBOT_IP,
+            'launch_rviz': 'false',
         }.items(),
     )
 
@@ -39,27 +45,51 @@ def generate_launch_description() -> LaunchDescription:
         ),
     )
 
+    force_sensor_node = Node(
+        package='force_sensor',
+        executable='force_sensor_axis_6',
+        name='force_sensor_axis_6',
+        output='screen',
+        parameters=[{
+            'forcesensorport': FORCE_SENSOR_PORT,
+            'forcesensor_rate': 200,
+            'baudrate': 115200,
+            'frame_id': 'asm_force_sensor_link',
+            'topic_name': RAW_WRENCH_TOPIC,
+            'auto_zero': False,
+        }],
+    )
+
     asm_tool_tf_broadcaster = Node(
         package='ultra_scanning_system',
         executable='asm_tool_tf_broadcaster',
         name='asm_tool_tf_broadcaster',
         output='screen',
         parameters=[{
-            'parent_frame': asm_parent_frame,
-            'publish_rate': asm_tf_publish_rate,
+            'parent_frame': TOOL_FRAME,
+            'publish_rate': 125.0,
+        }],
+    )
+
+    ee_state_from_tf_node = Node(
+        package='ultra_scanning_sim',
+        executable='ee_state_from_tf_node',
+        name='asm_ee_state_from_tf_node',
+        output='screen',
+        parameters=[{
+            'source_frame': BASE_FRAME,
+            'target_frame': ASM_EE_FRAME,
+            'output_pose_topic': EE_POSE_TOPIC,
+            'output_twist_topic': EE_TWIST_TOPIC,
+            'publish_rate': 125.0,
+            'max_angular_speed': 10.0,
         }],
     )
 
     return LaunchDescription([
-        DeclareLaunchArgument('ur_type', default_value='ur5'),
-        DeclareLaunchArgument('robot_ip', default_value='192.168.1.102'),
-        DeclareLaunchArgument('launch_rviz', default_value='false'),
-        DeclareLaunchArgument(
-            'asm_parent_frame',
-            default_value='tool0',
-        ),
-        DeclareLaunchArgument('asm_tf_publish_rate', default_value='50.0'),
+        force_sensor_node,
         ur_driver_launch,
         encoder_dual_launch,
         asm_tool_tf_broadcaster,
+        ee_state_from_tf_node,
     ])

@@ -32,10 +32,13 @@ setup(
             'teleoperation_control_ui_pub = ur5_rtde_control.teleoperation_control_ui_pub:main',
             'teleoperation_control_ui_executor = ur5_rtde_control.teleoperation_control_ui_executor:main',
             'my_demo = ur5_rtde_control.my_demo:main',
+            'io_demo = ur5_rtde_control.io_demo:main',
             'omni_pub_test_node = ur5_rtde_control.omni_pub_test_node:main',
             'rtde_velocity_publisher_node = ur5_rtde_control.rtde_velocity_publisher_node:main',
             'rtde_servol_pose_controller_node = ur5_rtde_control.rtde_servol_pose_controller_node:main',
+            'rtde_servol_frame_pose_controller_node = ur5_rtde_control.rtde_servol_frame_pose_controller_node:main',
             'test_rtde_performance_node = ur5_rtde_control.test_rtde_performance_node:main',
+            'tool_do_pose_trigger_node = ur5_rtde_control.tool_do_pose_trigger_node:main',
         ],
     },
 )
