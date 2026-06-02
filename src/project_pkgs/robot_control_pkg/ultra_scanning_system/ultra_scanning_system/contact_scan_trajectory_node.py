@@ -16,6 +16,7 @@ from robot_trajectory_planner.path_map_trajectory_logic import (
 )
 from ultra_scanning_system.contact_scan_trajectory_logic import (
     ContactScanState,
+    align_contact_path_start,
     apply_contact_offset,
     compute_approach_axis,
     compute_retract_pose,
@@ -157,6 +158,7 @@ class ContactScanTrajectoryNode(Node):
         self.control_wrench_ramp_frame = self.control_wrench_frame
         self.contact_settle_pose: PoseState | None = None
         self.last_pre_contact_command_pose: PoseState | None = None
+        self.last_published_desired_pose: PoseState | None = None
         self.contact_settle_stable_time = 0.0
         self.contact_path_points: list[PoseState] = []
         self.fault_hold_pose: PoseState | None = None
@@ -312,10 +314,12 @@ class ContactScanTrajectoryNode(Node):
                 # 完整实测 wrench 开始，避免力/力矩命令结构突变。
                 self.control_wrench_ref = self.latest_wrench
                 self.control_wrench_ramp_frame = self.latest_wrench_frame
-                # 切换到 CONTACT_SETTLE 时继续锁住上一帧预接触期望位姿，
-                # 避免用瞬时实测位姿触发 /scan/desired_pose 突变。
+                # 切换到 CONTACT_SETTLE 时锁住上一帧已经发布出去的
+                # /scan/desired_pose，避免因状态切换改用其他缓存造成突变。
                 self.contact_settle_pose = (
-                    self.last_pre_contact_command_pose or self.current_pose
+                    self.last_published_desired_pose
+                    or self.last_pre_contact_command_pose
+                    or self.current_pose
                 )
                 self.contact_settle_stable_time = 0.0
                 contact_path = apply_contact_offset(
@@ -402,7 +406,30 @@ class ContactScanTrajectoryNode(Node):
                 self.contact_settle_stable_time = 0.0
 
             if self.contact_settle_stable_time >= self.contact_settle_duration:
-                self._ensure_trajectory(self.contact_path_points, loop_path=False)
+                scan_start_pose = (
+                    self.last_published_desired_pose
+                    or self.contact_settle_pose
+                    or self.current_pose
+                )
+                aligned_path = align_contact_path_start(
+                    [
+                        (point.position, point.orientation_xyzw)
+                        for point in self.contact_path_points
+                    ],
+                    stable_pose=(
+                        scan_start_pose.position,
+                        scan_start_pose.orientation_xyzw,
+                    ),
+                )
+                self.contact_path_points = [
+                    PoseState(position=position, orientation_xyzw=orientation)
+                    for position, orientation in aligned_path
+                ]
+                self._ensure_trajectory(
+                    self.contact_path_points,
+                    loop_path=False,
+                    start_pose=scan_start_pose,
+                )
                 self._set_state(
                     ContactScanState.CONTACT_SCAN,
                     reason='contact force settled',
@@ -455,14 +482,20 @@ class ContactScanTrajectoryNode(Node):
 
         self._publish_zero_control_wrench()
 
-    def _ensure_trajectory(self, waypoints: list[PoseState], *, loop_path: bool) -> None:
+    def _ensure_trajectory(
+        self,
+        waypoints: list[PoseState],
+        *,
+        loop_path: bool,
+        start_pose: PoseState | None = None,
+    ) -> None:
         """按当前真实位姿创建一段新的时间参数化轨迹."""
         if self.trajectory is not None:
             return
         assert self.current_pose is not None
         self.trajectory = PathMapTrajectory(
             waypoints=waypoints,
-            start_pose=self.current_pose,
+            start_pose=start_pose or self.current_pose,
             max_linear_speed=self.max_linear_speed,
             max_angular_speed=self.max_angular_speed,
             min_segment_duration=0.0,
@@ -519,6 +552,9 @@ class ContactScanTrajectoryNode(Node):
         pose_msg.orientation.z = pose.orientation_xyzw[2]
         pose_msg.orientation.w = pose.orientation_xyzw[3]
         self.pose_pub.publish(pose_msg)
+        # 记录真正发布到 /scan/desired_pose 的最后一帧，状态切换时用它
+        # 做保持位姿，避免理论命令缓存和实际发布值不一致。
+        self.last_published_desired_pose = pose
 
         twist_msg = Twist()
         twist_msg.linear.x = linear[0]

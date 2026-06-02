@@ -87,6 +87,43 @@ def apply_contact_offset(
     return shifted
 
 
+def align_contact_path_start(
+    path: Sequence[Pose],
+    *,
+    stable_pose: Pose,
+) -> list[Pose]:
+    """
+    将接触路径整体平移到稳定接触位姿起点.
+
+    `delta_c` 只修正了粗路径的法向高度误差，不能修正切向误差。进入
+    CONTACT_SCAN 前用稳定后的实际接触位姿对齐路径起点，可避免
+    `/scan/desired_pose` 在状态切换时跳变。
+    """
+    if not path:
+        return []
+
+    stable_position, stable_orientation = stable_pose
+    start_position, _ = path[0]
+    offset = (
+        stable_position[0] - start_position[0],
+        stable_position[1] - start_position[1],
+        stable_position[2] - start_position[2],
+    )
+
+    aligned: list[Pose] = []
+    for index, (position, orientation) in enumerate(path):
+        aligned_orientation = stable_orientation if index == 0 else orientation
+        aligned.append((
+            (
+                position[0] + offset[0],
+                position[1] + offset[1],
+                position[2] + offset[2],
+            ),
+            aligned_orientation,
+        ))
+    return aligned
+
+
 def normal_force(
     wrench: Wrench6,
     *,

@@ -36,6 +36,10 @@ def test_pre_contact_enters_settle_from_measured_force_and_actual_offset():
         position=(0.1, 0.2, 0.313),
         orientation_xyzw=(0.0, 0.0, 0.0, 1.0),
     )
+    last_published_pose = PoseState(
+        position=(0.1, 0.2, 0.312),
+        orientation_xyzw=(0.0, 0.0, 0.0, 1.0),
+    )
     node.last_time = None
     node.current_pose = PoseState(
         position=(0.1, 0.2, 0.314),
@@ -53,6 +57,7 @@ def test_pre_contact_enters_settle_from_measured_force_and_actual_offset():
     node.approach_axis_sign = 1.0
     node.contact_settle_pose = None
     node.last_pre_contact_command_pose = last_command_pose
+    node.last_published_desired_pose = last_published_pose
     node.contact_settle_stable_time = 0.0
     node.contact_path_points = []
     node.path_points = [
@@ -73,7 +78,7 @@ def test_pre_contact_enters_settle_from_measured_force_and_actual_offset():
 
     assert node.state == ContactScanState.CONTACT_SETTLE
     assert node.contact_force_ref == 12.0
-    assert node.contact_settle_pose == last_command_pose
+    assert node.contact_settle_pose == last_published_pose
     assert math.isclose(node.delta_c, 0.014)
     assert node.contact_path_points[0].position == (0.1, 0.2, 0.314)
     assert published_wrenches == [node.latest_wrench]
@@ -205,6 +210,7 @@ def test_contact_settle_holds_pose_until_force_is_stable():
     node.contact_settle_force_tolerance = 0.5
     node.contact_settle_stable_time = 0.0
     node.contact_settle_pose = hold_pose
+    node.last_published_desired_pose = hold_pose
     node.contact_path_points = [contact_path_point]
     node.control_wrench_ref = (0.0, 0.0, -5.0, 0.0, 0.0, 0.0)
     node.control_wrench_ramp_frame = 'asm_force_sensor_link'
@@ -221,7 +227,9 @@ def test_contact_settle_holds_pose_until_force_is_stable():
     node._publish_control_wrench = lambda signed_force: None
     node._publish_control_wrench_vector = lambda wrench, frame_id: None
     node._ensure_trajectory = (
-        lambda waypoints, loop_path: trajectory_waypoints.extend(waypoints)
+        lambda waypoints, loop_path, start_pose=None: trajectory_waypoints.extend(
+            waypoints
+        )
     )
     node._set_state = lambda new_state, reason: setattr(node, 'state', new_state)
     node.get_clock = lambda: None
@@ -230,7 +238,61 @@ def test_contact_settle_holds_pose_until_force_is_stable():
     ContactScanTrajectoryNode._on_timer(node)
 
     assert published_poses == [hold_pose]
-    assert trajectory_waypoints == [contact_path_point]
+    assert trajectory_waypoints == [hold_pose]
+    assert node.state == ContactScanState.CONTACT_SCAN
+
+
+def test_contact_scan_starts_from_last_desired_pose_after_settle():
+    node = object.__new__(ContactScanTrajectoryNode)
+    hold_pose = PoseState(
+        position=(0.1, 0.2, 0.240),
+        orientation_xyzw=(0.0, 0.0, 0.0, 1.0),
+    )
+    current_pose = PoseState(
+        position=(0.1, 0.2, 0.236),
+        orientation_xyzw=(0.0, 0.0, 0.0, 1.0),
+    )
+    contact_path_point = PoseState(
+        position=(0.1, 0.2, 0.314),
+        orientation_xyzw=(0.0, 0.0, 0.0, 1.0),
+    )
+    node.last_time = time.monotonic() - 0.2
+    node.current_pose = current_pose
+    node.latest_wrench = (0.0, 0.0, -5.1, 0.0, 0.0, 0.0)
+    node.state = ContactScanState.CONTACT_SETTLE
+    node.force_axis = 'z'
+    node.force_axis_sign = -1.0
+    node.max_contact_force = 20.0
+    node.contact_force_ref = 5.0
+    node.target_contact_force = 5.0
+    node.force_ramp_rate = 1.0
+    node.contact_settle_duration = 0.1
+    node.contact_settle_force_tolerance = 0.5
+    node.contact_settle_stable_time = 0.0
+    node.contact_settle_pose = hold_pose
+    node.last_published_desired_pose = hold_pose
+    node.contact_path_points = [contact_path_point]
+    node.control_wrench_ref = (0.0, 0.0, -5.0, 0.0, 0.0, 0.0)
+    node.control_wrench_ramp_frame = 'asm_force_sensor_link'
+    node.zero_torque_rx_ry_enabled = True
+    node.target_torque_rx = 0.0
+    node.target_torque_ry = 0.0
+    node.torque_ramp_rate = 0.05
+    node.trajectory = None
+    captured = {}
+    node._publish_pose_twist_accel = lambda pose, linear, angular: None
+    node._publish_control_wrench_vector = lambda wrench, frame_id: None
+    node._ensure_trajectory = lambda waypoints, loop_path, start_pose=None: captured.update(
+        waypoints=waypoints,
+        start_pose=start_pose,
+    )
+    node._set_state = lambda new_state, reason: setattr(node, 'state', new_state)
+    node.get_logger = lambda: FakeLogger()
+
+    ContactScanTrajectoryNode._on_timer(node)
+
+    assert captured['waypoints'][0] == hold_pose
+    assert captured['start_pose'] == hold_pose
     assert node.state == ContactScanState.CONTACT_SCAN
 
 

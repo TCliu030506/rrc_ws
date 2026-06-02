@@ -2,6 +2,7 @@ import math
 
 from ultra_scanning_system.contact_scan_trajectory_logic import (
     ContactScanState,
+    align_contact_path_start,
     apply_contact_offset,
     compute_approach_axis,
     compute_retract_pose,
@@ -39,6 +40,24 @@ def test_apply_contact_offset_moves_each_path_point_along_its_tool_axis():
 
     assert_vector_close(shifted[0][0], (0.4, -0.1, 0.23))
     assert_vector_close(shifted[0][1], pose[1])
+
+
+def test_align_contact_path_start_matches_stable_contact_pose():
+    path = [
+        ((0.10, 0.20, 0.30), (0.0, 0.0, 0.0, 1.0)),
+        ((0.20, 0.20, 0.31), (0.0, 0.0, 0.0, 1.0)),
+    ]
+    stable_pose = (
+        (0.11, 0.18, 0.305),
+        (0.1, 0.2, 0.3, 0.9),
+    )
+
+    aligned = align_contact_path_start(path, stable_pose=stable_pose)
+
+    assert_vector_close(aligned[0][0], stable_pose[0])
+    assert_vector_close(aligned[0][1], stable_pose[1])
+    assert_vector_close(aligned[1][0], (0.21, 0.18, 0.315))
+    assert_vector_close(aligned[1][1], path[1][1])
 
 
 def test_normal_force_uses_configured_axis_and_sign():
