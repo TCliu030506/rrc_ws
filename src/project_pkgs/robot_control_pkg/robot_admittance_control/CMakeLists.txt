@@ -171,6 +171,16 @@ if(BUILD_TESTING)
     )
   endif()
 
+  ament_add_gtest(admittance_freeze_mode_test
+    test/admittance_freeze_mode_test.cpp
+  )
+  if(TARGET admittance_freeze_mode_test)
+    target_include_directories(admittance_freeze_mode_test PRIVATE
+      include
+    )
+    target_compile_features(admittance_freeze_mode_test PUBLIC cxx_std_17)
+  endif()
+
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
   # comment the line when a copyright and license is added to all source files

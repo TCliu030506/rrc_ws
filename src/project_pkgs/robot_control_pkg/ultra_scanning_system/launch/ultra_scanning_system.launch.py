@@ -39,12 +39,12 @@ TOOL_CMD_POSE_TOPIC = '/arm_desired_pose_tool0'
 CONTROL_WRENCH_TOPIC = '/arm_admittance_control/control_wrench'
 
 # Path-map trajectory 参数
-PATH_MAP_PUBLISH_RATE = 100.0
-PATH_MAP_MAX_LINEAR_SPEED = 0.01
+PATH_MAP_PUBLISH_RATE = 200.0
+PATH_MAP_MAX_LINEAR_SPEED = 0.008
 PATH_MAP_MAX_ANGULAR_SPEED = 0.05
 PATH_MAP_LOOP_PATH = False
 PATH_MAP_ENABLE_RESAMPLING = True
-PATH_MAP_MAX_LINEAR_STEP = 0.001
+PATH_MAP_MAX_LINEAR_STEP = 0.0005
 PATH_MAP_MAX_ANGULAR_STEP = 0.01
 
 # Contact scan 参数
@@ -65,7 +65,7 @@ CONTACT_SCAN_MAX_SEARCH_DISTANCE = 0.1
 CONTACT_SCAN_PRE_CONTACT_SPEED = 0.0001
 CONTACT_SCAN_RETRACT_DISTANCE = 0.05
 CONTACT_SCAN_STATE_TOPIC = '/contact_scan/state'
-SCAN_POSE_MUX_ADMITTANCE_BLEND_DURATION = 0.5
+SCAN_POSE_MUX_ADMITTANCE_BLEND_DURATION = 0.1
 
 # 一体化 servoL 执行节点参数：内部完成 asm_ee_site -> tool0 的 TF 转换。
 SERVO_ENABLE_DEBUG_POSE_PUBLISH = True
@@ -145,7 +145,7 @@ def generate_launch_description():
             'topic_desired_pose': DESIRED_POSE_TOPIC,
             'topic_desired_twist': DESIRED_TWIST_TOPIC,
             'topic_desired_accel': DESIRED_ACCEL_TOPIC,
-            'publish_rate': 20.0,
+            'publish_rate': 125.0,
         }],
     )
 
@@ -234,6 +234,8 @@ def generate_launch_description():
                 'topic_desired_pose': DESIRED_POSE_TOPIC,
                 'topic_desired_twist': DESIRED_TWIST_TOPIC,
                 'topic_desired_accel': DESIRED_ACCEL_TOPIC,
+                'admittance_freeze_state_topic': CONTACT_SCAN_STATE_TOPIC,
+                'admittance_freeze_states': ['approach', 'pre_contact'],
             },
         ],
     )

@@ -10,6 +10,7 @@
 #include <geometry_msgs/msg/wrench_stamped.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
+#include <std_msgs/msg/string.hpp>
 
 #include <tf2/time.h>
 #include <tf2_ros/buffer.h>
@@ -97,6 +98,7 @@ protected:
   rclcpp::Subscription<geometry_msgs::msg::Accel>::SharedPtr sub_desired_accel_; // 期望加速度订阅
   rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr sub_wrench_external_; // 力/力矩传感器订阅
   rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr sub_wrench_control_;  // 控制输入力/力矩订阅
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_admittance_state_; // 导纳冻结状态订阅
 
   // --- 发布者 ---
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr pub_arm_cmd_; // 机械臂速度指令发布
@@ -183,12 +185,17 @@ protected:
   bool desired_pose_ready_;
   bool desired_twist_ready_;
   bool desired_accel_ready_;
+  bool admittance_frozen_{false}; // true 时导纳输出直通期望轨迹，不积分虚拟状态
+  std::string latest_admittance_state_;
+  std::string admittance_freeze_state_topic_;
+  std::vector<std::string> admittance_freeze_states_;
 
   // --- 初始化相关方法 ---
   void wait_for_transformations(); // 等待TF变换全部就绪
 
   // --- 控制主流程 ---
   void compute_admittance();       // 顺应性动力学计算
+  void compute_frozen_admittance_command(); // 冻结模式：输出对齐期望轨迹并清零导纳状态
   Vector6d filter_external_wrench(const Vector6d & raw_wrench);
   void apply_pose_smoothing(const Vector3d & raw_position, const Quaterniond & raw_orientation);
   void apply_twist_smoothing(const Vector6d & raw_twist);
@@ -203,6 +210,7 @@ protected:
   void desired_accel_callback(const geometry_msgs::msg::Accel::SharedPtr msg);
   void wrench_external_callback(const geometry_msgs::msg::WrenchStamped::SharedPtr msg); // 力/力矩传感器回调
   void wrench_control_callback(const geometry_msgs::msg::WrenchStamped::SharedPtr msg);  // 控制输入回调
+  void admittance_state_callback(const std_msgs::msg::String::SharedPtr msg);
 
   // --- 工具函数 ---
   bool get_rotation_matrix(Matrix6d & rotation_matrix,

@@ -13,19 +13,19 @@ from robot_trajectory_planner.path_map_trajectory_logic import (
 
 
 def should_use_direct_pose(state_value: str, direct_states: set[str]) -> bool:
-    """Return true when the current scan state should bypass admittance."""
+    """判断当前接触扫查状态是否应该绕过导纳控制器。"""
     return state_value in direct_states
 
 
 def blend_ratio(elapsed: float, duration: float) -> float:
-    """Return a clamped 0..1 blend ratio."""
+    """根据经过时间计算 0..1 的插值比例，防止越界。"""
     if duration <= 0.0:
         return 1.0
     return min(1.0, max(0.0, elapsed / duration))
 
 
 def pose_msg_to_state(msg: Pose) -> PoseState:
-    """Convert geometry_msgs/Pose to the shared PoseState helper."""
+    """把 ROS Pose 消息转换成轨迹工具函数共用的 PoseState。"""
     return PoseState(
         position=(
             float(msg.position.x),
@@ -42,7 +42,7 @@ def pose_msg_to_state(msg: Pose) -> PoseState:
 
 
 def pose_state_to_msg(state: PoseState) -> Pose:
-    """Convert PoseState back to geometry_msgs/Pose."""
+    """把 PoseState 转回 ROS Pose 消息。"""
     msg = Pose()
     msg.position.x = state.position[0]
     msg.position.y = state.position[1]
@@ -55,7 +55,7 @@ def pose_state_to_msg(state: PoseState) -> Pose:
 
 
 def interpolate_pose_msg(start: Pose, target: Pose, ratio: float) -> Pose:
-    """Blend two Pose messages using the path-map pose interpolation logic."""
+    """用路径轨迹模块的插值逻辑在两个 Pose 消息之间平滑过渡。"""
     return pose_state_to_msg(
         interpolate_pose(
             pose_msg_to_state(start),
@@ -67,10 +67,15 @@ def interpolate_pose_msg(start: Pose, target: Pose, ratio: float) -> Pose:
 
 class ScanPoseMux(Node):
     """
-    Select the pose command sent to servoL.
+    选择最终发给 servoL 的末端位姿命令。
 
-    APPROACH/PRE_CONTACT 使用轨迹源的名义位姿直接控制机械臂；其他阶段
-    使用导纳控制器输出的位姿。这样不需要运行时启动/停止导纳节点。
+    节点有两个位姿输入：
+    - direct_pose_topic: 接触轨迹节点发布的名义期望位姿 `/scan/desired_pose`
+    - admittance_pose_topic: 导纳控制器输出的柔顺修正后位姿
+
+    APPROACH/PRE_CONTACT 使用名义位姿直接控制机械臂；其他阶段使用导纳
+    控制器输出的位姿。这样导纳节点可以一直运行，mux 只负责选择哪一路
+    Pose 真正送到 servo 控制器。
     """
 
     def __init__(self) -> None:
@@ -91,9 +96,16 @@ class ScanPoseMux(Node):
         self.admittance_blend_duration = float(
             self.get_parameter('admittance_blend_duration').value
         )
+        # current_state 由 /contact_scan/state 更新。初始为空时默认不直通，
+        # 即在没有状态信息前优先使用导纳输出，避免误把轨迹源直接送给 servo。
         self.current_state = ''
+
+        # latest_direct_pose 保存轨迹源最近一帧；last_output_pose 保存 mux 真正
+        # 发给 servo 的最近一帧，切换到导纳时用作平滑接管起点。
         self.latest_direct_pose: Pose | None = None
         self.last_output_pose: Pose | None = None
+
+        # blend_* 只在“直通 -> 导纳”切换后短时间有效，用于避免输出位姿突跳。
         self.blend_start_pose: Pose | None = None
         self.blend_start_time: float | None = None
 
@@ -118,23 +130,24 @@ class ScanPoseMux(Node):
         )
 
     def _on_state(self, msg: String) -> None:
-        """Store latest contact scan state."""
+        """接收接触扫查状态，并根据状态边沿启动或清除导纳接管插值。"""
         was_direct = should_use_direct_pose(self.current_state, self.direct_states)
         will_use_direct = should_use_direct_pose(msg.data, self.direct_states)
         self.current_state = msg.data
+        # 只有从直通状态离开时才需要平滑接管；进入直通状态时直接使用轨迹源。
         if was_direct and not will_use_direct:
             self._start_admittance_blend()
         elif will_use_direct:
             self._clear_admittance_blend()
 
     def _on_direct_pose(self, msg: Pose) -> None:
-        """Publish direct pose only during configured bypass states."""
+        """接收轨迹源名义位姿；仅在配置的直通状态下转发到 servo。"""
         self.latest_direct_pose = msg
         if should_use_direct_pose(self.current_state, self.direct_states):
             self._publish_pose(msg)
 
     def _on_admittance_pose(self, msg: Pose) -> None:
-        """Publish admittance pose when not bypassing admittance."""
+        """接收导纳输出位姿；非直通状态下转发，必要时先做平滑插值。"""
         if not should_use_direct_pose(self.current_state, self.direct_states):
             self._publish_pose(self._blend_admittance_pose(msg))
 
@@ -162,6 +175,8 @@ class ScanPoseMux(Node):
         if ratio >= 1.0:
             self._clear_admittance_blend()
             return msg
+        # 位置线性插值，姿态使用 path_map_trajectory_logic.interpolate_pose()
+        # 内部的四元数 slerp，避免姿态分量直接线性混合。
         return interpolate_pose_msg(self.blend_start_pose, msg, ratio)
 
     def _publish_pose(self, msg: Pose) -> None:

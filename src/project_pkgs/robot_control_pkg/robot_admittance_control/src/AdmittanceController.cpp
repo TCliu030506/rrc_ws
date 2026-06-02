@@ -1,4 +1,5 @@
 #include "robot_admittance_control/AdmittanceController.h"  // 头文件
+#include "robot_admittance_control/admittance_freeze_mode.h"
 #include "robot_admittance_control/tool_frame_admittance_math.h"
 #include <chrono>   // 时间相关
 #include <thread>   // 线程休眠
@@ -72,6 +73,12 @@ AdmittanceController::AdmittanceController(
   if (!node_->has_parameter("topic_desired_accel")) {
     node_->declare_parameter("topic_desired_accel", "/desired_accel");
   }
+  if (!node_->has_parameter("admittance_freeze_state_topic")) {
+    node_->declare_parameter("admittance_freeze_state_topic", "");
+  }
+  if (!node_->has_parameter("admittance_freeze_states")) {
+    node_->declare_parameter("admittance_freeze_states", std::vector<std::string>{});
+  }
   if (!node_->has_parameter("track_kp")) {
     node_->declare_parameter("track_kp", std::vector<double>{1.0, 1.0, 1.0, 0.3, 0.3, 0.3});
   }
@@ -127,6 +134,8 @@ AdmittanceController::AdmittanceController(
   node_->get_parameter("topic_desired_pose", topic_desired_pose);
   node_->get_parameter("topic_desired_twist", topic_desired_twist);
   node_->get_parameter("topic_desired_accel", topic_desired_accel);
+  node_->get_parameter("admittance_freeze_state_topic", admittance_freeze_state_topic_);
+  node_->get_parameter("admittance_freeze_states", admittance_freeze_states_);
   node_->get_parameter("track_kp", track_kp);
   node_->get_parameter("track_ki", track_ki);
   node_->get_parameter("track_integral_limit", track_integral_limit);
@@ -211,6 +220,15 @@ AdmittanceController::AdmittanceController(
     rclcpp::QoS(5),
     std::bind(&AdmittanceController::wrench_control_callback, this, std::placeholders::_1));
 
+  if (!admittance_freeze_state_topic_.empty()) {
+    rclcpp::QoS state_qos(10);
+    state_qos.transient_local();
+    sub_admittance_state_ = node_->create_subscription<std_msgs::msg::String>(
+      admittance_freeze_state_topic_,
+      state_qos,
+      std::bind(&AdmittanceController::admittance_state_callback, this, std::placeholders::_1));
+  }
+
   // --- 发布机械臂速度指令 ---
   pub_arm_cmd_ = node_->create_publisher<geometry_msgs::msg::Twist>(topic_arm_command, rclcpp::QoS(5));
   // 新增：发布期望位置（参数化话题名）
@@ -232,6 +250,10 @@ AdmittanceController::AdmittanceController(
     enable_output_smoothing_,
     twist_smoothing_alpha_linear_, twist_smoothing_alpha_angular_,
     pose_smoothing_alpha_linear_, pose_smoothing_alpha_angular_);
+  RCLCPP_INFO(node_->get_logger(),
+    "Admittance freeze mode: state_topic=%s states=%zu",
+    admittance_freeze_state_topic_.c_str(),
+    admittance_freeze_states_.size());
 
 
   // 初始化各类状态变量
@@ -275,6 +297,7 @@ AdmittanceController::AdmittanceController(
   desired_pose_ready_ = false;
   desired_twist_ready_ = false;
   desired_accel_ready_ = false;
+  admittance_frozen_ = false;
 
   // 等待所有TF变换就绪
   wait_for_transformations();
@@ -317,6 +340,11 @@ void AdmittanceController::compute_admittance()
     arm_command_orientation_.normalize();
     pose_smoothing_initialized_ = false;
     output_smoothing_initialized_ = false;
+    return;
+  }
+
+  if (admittance_frozen_) {
+    compute_frozen_admittance_command();
     return;
   }
 
@@ -405,6 +433,29 @@ void AdmittanceController::compute_admittance()
 
   apply_twist_smoothing(raw_arm_desired_twist);
 
+}
+
+void AdmittanceController::compute_frozen_admittance_command()
+{
+  // 冻结模式用于上层状态机的直控阶段。此时 mux 可能不使用导纳输出，
+  // 但导纳内部不能继续把力残差积分成虚拟位移，否则切回导纳时会跳变。
+  admittance_displacement_.setZero();
+  admittance_twist_.setZero();
+  track_error_integral_.setZero();
+
+  admittance_state_orientation_ = arm_real_orientation_.normalized();
+  admittance_state_frame_initialized_ = true;
+
+  arm_command_position_ = desired_position_;
+  arm_command_orientation_ = desired_orientation_;
+  arm_command_orientation_.normalize();
+  arm_command_position_filtered_ = arm_command_position_;
+  arm_command_orientation_filtered_ = arm_command_orientation_;
+  pose_smoothing_initialized_ = true;
+
+  arm_desired_twist_ = desired_twist_;
+  arm_desired_twist_filtered_ = desired_twist_;
+  output_smoothing_initialized_ = true;
 }
 
 Vector6d AdmittanceController::filter_external_wrench(const Vector6d & raw_wrench)
@@ -661,6 +712,24 @@ void AdmittanceController::wrench_control_callback(
   // 应用坐标变换
   wrench_control_frame << rotation_control * wrench_source_frame;
   wrench_control_ = wrench_control_frame;
+}
+
+void AdmittanceController::admittance_state_callback(
+  const std_msgs::msg::String::SharedPtr msg)
+{
+  latest_admittance_state_ = msg->data;
+  const bool was_frozen = admittance_frozen_;
+  admittance_frozen_ = robot_admittance_control::shouldFreezeAdmittanceForState(
+    latest_admittance_state_,
+    admittance_freeze_states_);
+
+  if (admittance_frozen_ != was_frozen) {
+    RCLCPP_INFO(
+      node_->get_logger(),
+      "Admittance freeze mode %s by state=%s",
+      admittance_frozen_ ? "enabled" : "disabled",
+      latest_admittance_state_.c_str());
+  }
 }
 
 ///////////////////////////////////////////////////////////////

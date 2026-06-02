@@ -8,9 +8,6 @@ from rclpy import logging as rclpy_logging
 from sensor_msgs.msg import Image
 from ui_control_msg.msg import UiControl
 
-from cv_bridge import CvBridge
-import cv2
-
 from PyQt5.QtWidgets import (
     QApplication,
     QWidget,
@@ -23,8 +20,49 @@ from PyQt5.QtGui import QPixmap, QFont, QImage
 from PyQt5.QtCore import Qt
 
 
+def ros_image_to_qimage(msg: Image) -> QImage:
+    """
+    Convert sensor_msgs/Image to QImage without cv_bridge/cv2.
+
+    当前系统只需要在 UI 中显示图像，不需要 OpenCV 处理。直接转换可以避开
+    NumPy 2.x 与 ROS Humble cv_bridge 的二进制兼容问题，也避免 cv2 自带
+    Qt 插件和 PyQt5 的 xcb 插件冲突。
+    """
+    encoding = msg.encoding.lower()
+    width = int(msg.width)
+    height = int(msg.height)
+    step = int(msg.step)
+    data = bytes(msg.data)
+
+    if width <= 0 or height <= 0:
+        raise ValueError('image width and height must be positive')
+
+    if encoding in ('rgb8', 'bgr8'):
+        step = step or width * 3
+        q_image = QImage(data, width, height, step, QImage.Format_RGB888)
+        if encoding == 'bgr8':
+            # usb_cam/cv_bridge 常见输出是 BGR；Qt 显示需要 RGB。
+            return q_image.rgbSwapped().copy()
+        return q_image.copy()
+
+    if encoding in ('mono8', '8uc1'):
+        step = step or width
+        return QImage(data, width, height, step, QImage.Format_Grayscale8).copy()
+
+    if encoding == 'rgba8':
+        step = step or width * 4
+        return QImage(data, width, height, step, QImage.Format_RGBA8888).copy()
+
+    if encoding == 'bgra8':
+        step = step or width * 4
+        q_image = QImage(data, width, height, step, QImage.Format_RGBA8888)
+        return q_image.rgbSwapped().copy()
+
+    raise ValueError(f'unsupported image encoding: {msg.encoding}')
+
+
 class CustomQApplication(QApplication):
-    """自定义 QApplication，捕获事件处理中的异常并打印 ROS 日志"""
+    """Custom QApplication that logs exceptions from Qt event handlers."""
 
     def notify(self, receiver, event):
         try:
@@ -37,7 +75,7 @@ class CustomQApplication(QApplication):
 
 
 class FullScreenWidget(QWidget):
-    """自定义窗口，重写 keyPressEvent，与 C++ 逻辑一致"""
+    """Custom full-screen widget with keyboard shortcuts."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -70,9 +108,6 @@ class UINode(Node):
         # 仅保留 ROS 自旋线程
         self.ros_spin_thread = None
 
-        # OpenCV / cv_bridge
-        self.bridge = CvBridge()
-
         # ---------------- UI 构建（提取到单独函数） ----------------
         self._create_ui()
 
@@ -91,8 +126,7 @@ class UINode(Node):
         )
 
     def _create_ui(self):
-        """构建和布局整个 UI（从原 __init__ 中抽取）"""
-
+        """Create and lay out the UI widgets."""
         # ---------------- UI 构建 ----------------
         self.window = FullScreenWidget()
         self.window.setWindowTitle("Teleopration UI")
@@ -102,7 +136,8 @@ class UINode(Node):
         # logo
         self.logo_label = None
         logo = QPixmap(
-            "/home/liutiancheng/Lab_WS/zzrobot_ws/src/teleoperation_system/ui_test/resource/logo.jpg"
+            "/home/liutiancheng/Lab_WS/zzrobot_ws/src/teleoperation_system/"
+            "ui_test/resource/logo.jpg"
         )
         if not logo.isNull():
             self.logo_label = QLabel(self.window)
@@ -303,18 +338,11 @@ class UINode(Node):
     def video_listener_callback(self, msg: Image):
         # image_detected → 颅内画面
         try:
-            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            q_image = ros_image_to_qimage(msg)
         except Exception as e:
-            self.get_logger().error(f"cv_bridge exception: {e}")
+            self.get_logger().error(f"image conversion exception: {e}")
             return
 
-        # BGR → RGB
-        rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-        h, w, ch = rgb_image.shape
-        bytes_per_line = ch * w
-        q_image = QImage(
-            rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888
-        )
         pixmap = QPixmap.fromImage(q_image)
         if self.video_label_in:
             self.video_label_in.setPixmap(
@@ -326,17 +354,11 @@ class UINode(Node):
     def usb_video_listener_callback(self, msg: Image):
         # camera2/image_raw → 体外画面
         try:
-            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            q_image = ros_image_to_qimage(msg)
         except Exception as e:
-            self.get_logger().error(f"cv_bridge exception: {e}")
+            self.get_logger().error(f"image conversion exception: {e}")
             return
 
-        rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-        h, w, ch = rgb_image.shape
-        bytes_per_line = ch * w
-        q_image = QImage(
-            rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888
-        )
         pixmap = QPixmap.fromImage(q_image)
         if self.video_label_out:
             self.video_label_out.setPixmap(

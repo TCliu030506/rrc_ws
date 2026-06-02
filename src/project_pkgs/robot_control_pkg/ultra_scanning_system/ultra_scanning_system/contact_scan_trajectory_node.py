@@ -319,7 +319,7 @@ class ContactScanTrajectoryNode(Node):
                 self.contact_settle_pose = (
                     self.last_published_desired_pose
                     or self.last_pre_contact_command_pose
-                    or self.current_pose
+                    # or self.current_pose
                 )
                 self.contact_settle_stable_time = 0.0
                 contact_path = apply_contact_offset(

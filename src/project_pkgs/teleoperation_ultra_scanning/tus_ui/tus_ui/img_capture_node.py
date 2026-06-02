@@ -16,7 +16,7 @@ class ZmqReceiver(Node):
         self.socket = context.socket(zmq.SUB) # PULL
 
         # self.socket.bind("tcp://192.168.2.100:5556")
-        return_flag = self.socket.connect("tcp://192.168.2.100:5556")
+        return_flag = self.socket.connect("tcp://192.168.3.110:5556")
         self.get_logger().info(f"ZMQ connect return flag: {return_flag}")
 
         # SUB模式必须订阅主题（空字符串表示订阅所有主题）
