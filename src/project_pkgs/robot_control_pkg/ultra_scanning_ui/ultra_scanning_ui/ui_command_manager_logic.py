@@ -26,8 +26,8 @@ def default_command_specs() -> list[CommandSpec]:
             ],
         ),
         CommandSpec(
-            flag=2, 
-            name="plan_scan_path", 
+            flag=2,
+            name="plan_scan_path",
             command=[
                 "ros2",
                 "launch",
@@ -63,3 +63,8 @@ def name_for_flag(specs: list[CommandSpec], flag: int) -> str:
         if spec.flag == flag:
             return spec.name
     return f"flag_{flag}"
+
+
+def managed_process_popen_kwargs() -> dict[str, bool]:
+    """Return Popen options for a managed process group."""
+    return {"start_new_session": True}
