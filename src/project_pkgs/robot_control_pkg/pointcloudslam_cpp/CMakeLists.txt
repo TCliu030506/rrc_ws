@@ -88,6 +88,11 @@ include_directories(
   ${PCL_INCLUDE_DIRS}
 )
 
+# 安装 launch 文件
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}/
+)
+
 # 或使用target_include_directories
 target_include_directories(pcl_cloudslam PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"

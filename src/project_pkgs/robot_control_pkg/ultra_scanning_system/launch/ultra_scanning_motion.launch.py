@@ -65,7 +65,7 @@ CONTACT_SCAN_MAX_SEARCH_DISTANCE = 0.1
 CONTACT_SCAN_PRE_CONTACT_SPEED = 0.0001
 CONTACT_SCAN_RETRACT_DISTANCE = 0.05
 CONTACT_SCAN_STATE_TOPIC = '/contact_scan/state'
-SCAN_POSE_MUX_ADMITTANCE_BLEND_DURATION = 0.1
+SCAN_POSE_MUX_ADMITTANCE_BLEND_DURATION = 0.001
 
 # 一体化 servoL 执行节点参数：内部完成 asm_ee_site -> tool0 的 TF 转换。
 SERVO_ENABLE_DEBUG_POSE_PUBLISH = True
@@ -92,14 +92,17 @@ def generate_launch_description():
         'path_map_offset.txt',
     ])
 
-    hardware_tf_launch = IncludeLaunchDescription(
+    # 节点定义和参数配置
+    # 系统初始化节点
+    system_init_launch = IncludeLaunchDescription(
         _launch_file(
             'ultra_scanning_system',
             'launch',
-            'ultra_scanning_hardware_tf.launch.py',
+            'ultra_scanning_hardware_init.launch.py',
         ),
     )
 
+    # 动态重力补偿节点
     dynamic_gravity_compensation_node = Node(
         package='tool_gravity_compensation',
         executable='dynamic_gravity_compensation_node',
@@ -118,7 +121,7 @@ def generate_launch_description():
             },
         ],
     )
-
+    # 力传感器运动节点（从 TF 计算力传感器位姿\速度\加速度，供惯性力补偿使用）
     force_sensor_motion_node = Node(
         package='ur5_state_broadcaster',
         executable='frame_motion_from_tf',
@@ -135,6 +138,7 @@ def generate_launch_description():
         }],
     )
 
+    # 三个轨迹规划节点: 保持当前位置、路径图轨迹、接触扫查轨迹
     current_pose_hold_node = Node(
         package='robot_trajectory_planner',
         executable='current_pose_hold_node',
@@ -148,7 +152,6 @@ def generate_launch_description():
             'publish_rate': 125.0,
         }],
     )
-
     path_map_trajectory_node = Node(
         package='robot_trajectory_planner',
         executable='path_map_trajectory_node',
@@ -169,7 +172,6 @@ def generate_launch_description():
             'max_path_angular_step': PATH_MAP_MAX_ANGULAR_STEP,
         }],
     )
-
     contact_scan_trajectory_node = Node(
         package='ultra_scanning_system',
         executable='contact_scan_trajectory_node',
@@ -213,6 +215,7 @@ def generate_launch_description():
         }],
     )
 
+    # 动态 admittance 控制器节点
     admittance_controller_node = Node(
         package='robot_admittance_control',
         executable='admittance_controller_node',
@@ -239,7 +242,7 @@ def generate_launch_description():
             },
         ],
     )
-
+    # 扫描位姿混合节点
     scan_pose_mux_node = Node(
         package='ultra_scanning_system',
         executable='scan_pose_mux',
@@ -254,7 +257,7 @@ def generate_launch_description():
             'admittance_blend_duration': SCAN_POSE_MUX_ADMITTANCE_BLEND_DURATION,
         }],
     )
-
+    # 一体化 servoL 执行节点
     rtde_servol_frame_pose_controller_node = Node(  # noqa: F841
         package='ur5_rtde_control',
         executable='rtde_servol_frame_pose_controller_node',
@@ -285,24 +288,24 @@ def generate_launch_description():
             'RCUTILS_LOGGING_SEVERITY_THRESHOLD',
             GLOBAL_LOG_LEVEL,
         ),
-        TimerAction(period=0.0, actions=[hardware_tf_launch]),
+        # TimerAction(period=0.0, actions=[system_init_launch]), # 启动系统初始化的硬件相关节点
     ]
 
     if ENABLE_ADMITTANCE:
         actions.extend([
-            TimerAction(period=2.0, actions=[force_sensor_motion_node]),
-            TimerAction(period=2.5, actions=[dynamic_gravity_compensation_node]),
-            TimerAction(period=3.0, actions=[scan_pose_mux_node]),
-            TimerAction(period=3.2, actions=[rtde_servol_frame_pose_controller_node]),
-            TimerAction(period=3.5, actions=[admittance_controller_node]),
+            # TimerAction(period=0.0, actions=[force_sensor_motion_node]), #暂时不需要惯性力补偿
+            TimerAction(period=0.1, actions=[dynamic_gravity_compensation_node]),
+            TimerAction(period=0.1, actions=[scan_pose_mux_node]),
+            TimerAction(period=0.1, actions=[rtde_servol_frame_pose_controller_node]),
+            TimerAction(period=0.5, actions=[admittance_controller_node]),
         ])
 
     if TRAJECTORY_PLANNER == 'current_pose_hold':
-        actions.append(TimerAction(period=4.5, actions=[current_pose_hold_node]))
+        actions.append(TimerAction(period=1.5, actions=[current_pose_hold_node]))
     elif TRAJECTORY_PLANNER == 'path_map':
-        actions.append(TimerAction(period=4.5, actions=[path_map_trajectory_node]))
+        actions.append(TimerAction(period=1.5, actions=[path_map_trajectory_node]))
     elif TRAJECTORY_PLANNER == 'contact_scan':
-        actions.append(TimerAction(period=4.5, actions=[contact_scan_trajectory_node]))
+        actions.append(TimerAction(period=1.5, actions=[contact_scan_trajectory_node]))
     else:
         raise ValueError(
             "TRAJECTORY_PLANNER must be 'current_pose_hold', 'path_map', or 'contact_scan'"

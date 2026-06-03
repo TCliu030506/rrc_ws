@@ -20,6 +20,20 @@ EE_TWIST_TOPIC = '/asm_ee_site/twist'
 
 
 def generate_launch_description() -> LaunchDescription:
+
+    # Realense2 相机节点
+    realsense_node = Node(
+        package='realsense2_camera',
+        executable='realsense2_camera_node',
+        output='screen',
+        parameters=[{
+            'pointcloud.enable': True,
+            'enable_gyro': False,
+            'enable_accel': False,
+        }],
+    )
+
+    # UR 机器人驱动节点
     ur_driver_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
@@ -35,6 +49,14 @@ def generate_launch_description() -> LaunchDescription:
         }.items(),
     )
 
+    # UR 机器人额外状态发布节点()
+    ur_msg_pub_node = Node(
+        package= 'ur5_msg',
+        executable= 'ur5_msg_pub',
+        output= 'screen'
+      )
+
+    # 双编码器节点
     encoder_dual_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
@@ -45,6 +67,7 @@ def generate_launch_description() -> LaunchDescription:
         ),
     )
 
+    # 力传感器节点
     force_sensor_node = Node(
         package='force_sensor',
         executable='force_sensor_axis_6',
@@ -60,6 +83,7 @@ def generate_launch_description() -> LaunchDescription:
         }],
     )
 
+    # ASM 工具 TF 广播节点
     asm_tool_tf_broadcaster = Node(
         package='ultra_scanning_system',
         executable='asm_tool_tf_broadcaster',
@@ -71,6 +95,7 @@ def generate_launch_description() -> LaunchDescription:
         }],
     )
 
+    # ASM 工具位姿节点：从 TF 计算末端执行器位姿并发布到话题
     ee_state_from_tf_node = Node(
         package='ultra_scanning_sim',
         executable='ee_state_from_tf_node',
@@ -87,8 +112,10 @@ def generate_launch_description() -> LaunchDescription:
     )
 
     return LaunchDescription([
+        realsense_node,
         force_sensor_node,
         ur_driver_launch,
+        ur_msg_pub_node,
         encoder_dual_launch,
         asm_tool_tf_broadcaster,
         ee_state_from_tf_node,

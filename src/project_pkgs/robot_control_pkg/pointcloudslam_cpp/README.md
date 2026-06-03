@@ -49,10 +49,12 @@ ros2 run realsense2_camera realsense2_camera_node \
     -p pointcloud.enable:=true
 ```
 
+```bash
 ros2 run realsense2_camera realsense2_camera_node --ros-args \
   -p pointcloud.enable:=true \
   -p enable_gyro:=false \
   -p enable_accel:=false
+```
 
 ## 启动点云规划节点
 

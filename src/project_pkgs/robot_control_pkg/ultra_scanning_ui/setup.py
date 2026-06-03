@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'main_window_ui = ultra_scanning_ui.main_window_ui:main',
+            'ui_command_manager_node = ultra_scanning_ui.ui_command_manager_node:main',
         ],
     },
 )
