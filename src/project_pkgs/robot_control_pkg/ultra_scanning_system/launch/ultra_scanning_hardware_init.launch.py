@@ -1,5 +1,8 @@
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import (
+    IncludeLaunchDescription,
+    TimerAction,
+)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
@@ -118,5 +121,5 @@ def generate_launch_description() -> LaunchDescription:
         ur_msg_pub_node,
         encoder_dual_launch,
         asm_tool_tf_broadcaster,
-        ee_state_from_tf_node,
+        TimerAction(period=0.2, actions=[ee_state_from_tf_node]),
     ])

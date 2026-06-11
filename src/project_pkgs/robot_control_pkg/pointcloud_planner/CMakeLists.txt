@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(pointcloudslam_cpp)
+project(pointcloud_planner)
 
 if(POLICY CMP0074)
   cmake_policy(SET CMP0074 NEW)
@@ -20,7 +20,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
-find_package(PCL REQUIRED COMPONENTS common io visualization filters)
+find_package(PCL REQUIRED COMPONENTS common io visualization filters segmentation search kdtree features)
 find_package(std_msgs REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(ament_index_cpp REQUIRED)
@@ -50,7 +50,12 @@ add_executable(pcd_write src/pcd_write.cpp)
 add_executable(pcl_cluster src/pcl_cluster.cpp)
 add_executable(pcl_select src/pcl_select.cpp)
 add_executable(curve_polyfit src/curve_polyfit.cpp)
-add_executable(pcl_cloudslam src/pcl_cloudslam.cpp)
+add_executable(pcl_cloudslam
+  src/pcl_cloudslam.cpp
+  src/concave_roi_refinement.cpp
+  src/concave_workpiece_frame.cpp
+  src/concave_path_planning.cpp
+)
 # dependencies
 ament_target_dependencies(pcd_write rclcpp sensor_msgs pcl_conversions)
 ament_target_dependencies(pcl_cluster pcl_conversions)
@@ -104,6 +109,34 @@ target_include_directories(pcl_cloudslam PUBLIC
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  add_executable(test_roi_mode_utils test/test_roi_mode_utils.cpp)
+  target_include_directories(test_roi_mode_utils PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    "$<INSTALL_INTERFACE:include>"
+  )
+  add_test(NAME test_roi_mode_utils COMMAND test_roi_mode_utils)
+  add_executable(test_concave_workpiece_frame
+    test/test_concave_workpiece_frame.cpp
+    src/concave_workpiece_frame.cpp
+  )
+  target_include_directories(test_concave_workpiece_frame PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    "$<INSTALL_INTERFACE:include>"
+    ${PCL_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_concave_workpiece_frame ${PCL_LIBRARIES})
+  add_test(NAME test_concave_workpiece_frame COMMAND test_concave_workpiece_frame)
+  add_executable(test_concave_path_planning
+    test/test_concave_path_planning.cpp
+    src/concave_path_planning.cpp
+  )
+  target_include_directories(test_concave_path_planning PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    "$<INSTALL_INTERFACE:include>"
+    ${PCL_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_concave_path_planning ${PCL_LIBRARIES})
+  add_test(NAME test_concave_path_planning COMMAND test_concave_path_planning)
   # the following line skips the linter which checks for copyrights
   # comment the line when a copyright and license is added to all source files
   set(ament_cmake_copyright_FOUND TRUE)
