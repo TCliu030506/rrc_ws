@@ -9,15 +9,17 @@
 #include <pcl/filters/extract_indices.h>
 #include <vtkAreaPicker.h>
 #include <string>
+#include <cstdlib>
+
 pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>());
 typedef pcl::PointXYZ PointType;
 
-#define FILE_PATH "/zzrobot_ws/src/ur5lzh_pkg/pointcloudslam_cpp/data/"
+std::string output_path;
+bool is_areapicked = false;
  
 void areapickingcallback(const pcl::visualization::AreaPickingEvent &event,void *userdata)
 {
-    std::string output_path;
-    output_path = std::string(std::getenv("HOME")) + FILE_PATH + "areapicked.pcd";
+    (void)userdata;
     pcl::PointCloud<PointType>::Ptr  secloud(new pcl::PointCloud<PointType>());
     std::cout<<"Into here"<<std::endl;
     std::vector<int> indices;
@@ -30,24 +32,29 @@ void areapickingcallback(const pcl::visualization::AreaPickingEvent &event,void 
     extract.filter(*secloud);                         //输出所选点云
     std::cout<<"Nums selected\t"<<secloud->points.size()<<std::endl;
     pcl::io::savePCDFile(output_path,*secloud);
+    is_areapicked = true;
+    std::exit(0);
 }
-int main() 
+int main(int argc, char **argv)
 {
-	std::string file_name;
-    std::cin >> file_name;
-    std::cin.ignore();
-    std::string pcd_path = std::string(std::getenv("HOME")) + FILE_PATH + file_name + ".pcd";
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0] << " <input.pcd> <output.pcd>" << std::endl;
+        return 1;
+    }
 
+    const std::string pcd_path = argv[1];
+    output_path = argv[2];
+    std::cout << "Loading point cloud: " << pcd_path << std::endl;
     pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("Carviewer"));
-    pcl::io::loadPCDFile(pcd_path,*cloud);
+    if (pcl::io::loadPCDFile(pcd_path,*cloud) < 0) {
+        std::cerr << "Failed to load point cloud: " << pcd_path << std::endl;
+        return 1;
+    }
+    std::cout << "Loaded " << cloud->points.size() << " points. Select ROI in the viewer window." << std::endl;
     viewer->setBackgroundColor(0,0,0);
     viewer->addPointCloud(cloud,"car");
     viewer->registerAreaPickingCallback(areapickingcallback);
-    while (!viewer->wasStopped ())
-    {
-        viewer->spinOnce (100);
-        //boost::this_thread::sleep (boost::posix_time::microseconds (100000));
-    }
-    std::cout << "Hello, World!" << std::endl;
-    return 0;
+    viewer->spin();
+    std::cerr << "ROI selection window closed before selecting points." << std::endl;
+    return 1;
 }

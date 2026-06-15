@@ -1,7 +1,7 @@
 #include <cassert>
 #include <cmath>
 
-#include "pointcloudslam_cpp/concave_workpiece_frame.h"
+#include "pointcloud_planner/concave_workpiece_frame.h"
 
 namespace
 {

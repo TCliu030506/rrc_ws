@@ -454,7 +454,7 @@ declare_parameter<int>("roi_max_cluster_size", 250000);
 运行时可通过命令行调整：
 
 ```bash
-ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args \
+ros2 run pointcloud_planner pcl_cloudslam --ros-args \
   -p platform_plane_threshold:=0.005 \
   -p roi_height_min:=0.015 \
   -p roi_height_max:=0.090 \

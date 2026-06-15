@@ -9,7 +9,7 @@
 #include <eigen3/Eigen/Geometry>
 #include <eigen3/Eigen/Eigenvalues>
 
-#define FILE_PATH "/zzrobot_ws/src/ur5lzh_pkg/pointcloudslam_cpp/data/"
+#define FILE_PATH "/zzrobot_ws/src/ur5lzh_pkg/pointcloud_planner/data/"
 #define FILE_NAME "areapicked"
 
 void polyfit(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, Eigen::VectorXd& coefficients)

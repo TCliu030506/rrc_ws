@@ -1,0 +1,169 @@
+pcl_cloudslam_node:
+  ros__parameters:
+    # =========================
+    # 1. 点云预处理
+    # =========================
+    # VoxelGrid 下采样体素尺寸，单位 m。
+    # 调大：点更少、速度更快、细节更少；调小：点更多、细节更多、计算更慢。
+    Leafsize: 0.0005
+
+    # 路径点局部平面拟合搜索半径，单位 m。
+    # 调大：拟合更稳定但更平滑；调小：更贴局部细节但更容易点数不足。
+    ArroundDistance: 0.01
+
+    # 平面/常规模式扫描网格步长，单位 m。
+    # x_step 通常是相邻扫描线内点间距；y_step 通常是相邻扫描线间距。
+    x_step: 0.0035
+    y_step: 0.064
+
+    # 路径姿态法向平滑系数，范围一般 0.0-1.0。
+    # 调大：当前法向变化影响更大；调小：输出姿态更平滑。
+    normal_smoothing_alpha: 0.2
+
+    # =========================
+    # 2. 工具/探头安装几何
+    # =========================
+    # 工具安装姿态修正，单位 rad，按 roll/pitch/yaw 使用。
+    tool_mount_rx: 3.141592653589793
+    tool_mount_ry: 0.0
+    tool_mount_rz: 0.0
+
+    # 探头尖端相对 TCP 的偏移，单位 m。
+    # 若输出路径希望控制 TCP 而不是探头尖端，需要按实际夹具标定填写。
+    tool_tip_x: 0.0
+    tool_tip_y: 0.0
+    tool_tip_z: 0.0
+
+    # 路径点离表面的安全抬高距离，单位 m。
+    surface_clearance: 0.010
+
+    # 相邻路径点 z 方向最大变化限制，单位 m，用于抑制突变。
+    max_dz_step: 0.003
+
+    # 是否在路径转向处做 z/姿态平滑。
+    enable_turn_z_smoothing: true
+
+    # 判断路径转向的 y 方向变化阈值，单位 m。
+    turn_dy_threshold: 0.0001
+
+    # =========================
+    # 3. 规划模式与探头尺寸
+    # =========================
+    # 可选：plane / cylinder_preplan / concave_surface
+    # plane：平面 ROI 扫查；cylinder_preplan：圆柱预规划；concave_surface：凹曲面模式。
+    planning_mode: concave_surface
+
+    # 探头有效长度/宽度，单位 m，用于 ROI 边界收缩，避免探头越界。
+    probe_length_m: 0.18
+    probe_width_m: 0.075
+
+    # 探头边界额外安全余量，单位 m。
+    # 调大：路径离 ROI 边缘更远；调小：覆盖区域更大但越界风险增加。
+    probe_boundary_margin_m: 0.0
+
+    # cylinder_preplan 二次视角距离，单位 m。
+    cylinder_view_distance_m: 0.35
+
+    # =========================
+    # 4. 凹曲面 ROI 初筛/精修
+    # =========================
+    # 平台平面 RANSAC 距离阈值，单位 m。
+    platform_plane_threshold: 0.005
+
+    # ROI 相对平台的高度过滤范围，单位 m。
+    roi_height_min: 0.008
+    roi_height_max: 0.10
+
+    # 法向估计邻域点数。
+    # 调大：法向更稳但更慢；调小：更敏感但噪声更大。
+    roi_normal_k: 40
+
+    # ROI 法向与平台/目标方向的最小点积阈值。
+    # 调大：筛选更严格；调小：保留更多点。
+    roi_normal_dot_min: 0.80
+
+    # 聚类距离阈值，单位 m。
+    roi_cluster_tolerance: 0.008
+
+    # 聚类点数上下限。
+    roi_min_cluster_size: 100
+    roi_max_cluster_size: 250000
+
+    # 角点/边缘候选区域比例。
+    corner_patch_ratio: 0.15
+
+    # 平台候选点最少数量。
+    platform_candidate_min_points: 80
+
+    # =========================
+    # 5. 工件局部坐标系拟合
+    # =========================
+    # 用 ROI 点云百分位估计工件中心，降低离群点影响。
+    workpiece_center_percentile_low: 5.0
+    workpiece_center_percentile_high: 95.0
+
+    # 工件法向拟合半径，单位 m。
+    workpiece_normal_fit_radius: 0.03
+
+    # 工件法向拟合邻域点数和最少有效点数。
+    workpiece_normal_fit_k: 100
+    workpiece_min_normal_fit_points: 50
+
+    # 拟合工件坐标系要求的最少 ROI 点数。
+    workpiece_min_roi_points: 500
+
+    # 工件轴投影最小范数，过小表示轴方向不可靠。
+    workpiece_axis_projection_min_norm: 0.1
+
+    # 是否优先使用平台法向作为工件法向参考。
+    workpiece_use_platform_normal: true
+
+    # =========================
+    # 6. 凹曲面路径生成
+    # =========================
+    # 探头径向有效长度，单位 m。
+    concave_probe_radial_length: 0.03
+
+    # 凹曲面径向分层步长，单位 m。
+    concave_radial_step: 0.02
+
+    # 凹曲面边界安全余量，单位 m。
+    concave_boundary_margin: 0.020
+
+    # 凹曲面内端保留半径，单位 m。
+    concave_r_end: 0.008
+
+    # 凹曲面单层扫描点间距，单位 m。
+    concave_scan_point_spacing: 0.002
+
+    # 角向步长范围，单位 deg。
+    concave_delta_phi_min_deg: 0.5
+    concave_delta_phi_max_deg: 5.0
+
+    # 局部曲面拟合窗口，半径单位 m，角度单位 deg。
+    concave_r_fit: 0.02
+    concave_phi_fit_deg: 5.0
+
+    # 局部曲面拟合最少点数。
+    concave_min_fit_points: 10
+
+    # 凹曲面法向拟合半径和最少点数。
+    concave_normal_fit_radius: 0.02
+    concave_min_normal_fit_points: 50
+
+    # 凹曲面法向平滑系数，范围一般 0.0-1.0。
+    concave_normal_smoothing_alpha: 0.1
+
+    # 凹曲面进给方向插补步长，单位 m。
+    concave_feed_step: 0.002
+
+    # 是否在凹曲面层间增加过渡点。
+    concave_enable_transition_points: true
+
+    # 工具 z 轴对齐策略。
+    # 常用：negative_normal，让工具朝向表面法向反方向。 positive_normal，让工具朝向表面法向。
+    concave_tool_z_align: positive_normal
+
+    # 凹曲面路径质量下限。
+    concave_min_total_path_points: 20
+    concave_min_valid_points_per_layer: 8

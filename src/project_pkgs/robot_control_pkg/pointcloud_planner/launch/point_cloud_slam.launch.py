@@ -6,7 +6,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
 
     pcl_cloudslam_node = Node(
-        package='pointcloudslam_cpp',
+        package='pointcloud_planner',
         executable='pcl_cloudslam',
         output='screen',
         parameters=[{

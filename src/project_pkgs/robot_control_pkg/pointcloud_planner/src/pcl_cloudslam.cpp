@@ -1,13 +1,20 @@
-#include "../include/pointcloudslam_cpp/pcl_cloudslam.h"
-#include "../include/pointcloudslam_cpp/concave_path_planning.h"
-#include "../include/pointcloudslam_cpp/concave_roi_refinement.h"
-#include "../include/pointcloudslam_cpp/concave_workpiece_frame.h"
-#include "../include/pointcloudslam_cpp/roi_mode_utils.h"
+#include "../include/pointcloud_planner/pcl_cloudslam.h"
+#include "../include/pointcloud_planner/concave_path_planning.h"
+#include "../include/pointcloud_planner/concave_roi_refinement.h"
+#include "../include/pointcloud_planner/concave_workpiece_frame.h"
+#include "../include/pointcloud_planner/roi_mode_utils.h"
+#include <ament_index_cpp/get_package_prefix.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#include <X11/Xlib.h>
+#ifdef Success
+#undef Success
+#endif
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -51,6 +58,20 @@ Eigen::Vector3d choose_fallback_tangent(const Eigen::Vector3d &normal)
         tangent = Eigen::Vector3d::UnitX();
     }
     return tangent.normalized();
+}
+
+std::string shell_quote(const std::string &value)
+{
+    std::string quoted = "'";
+    for (const char ch : value) {
+        if (ch == '\'') {
+            quoted += "'\\''";
+        } else {
+            quoted += ch;
+        }
+    }
+    quoted += "'";
+    return quoted;
 }
 
 Eigen::Vector3d rotation_matrix_to_rotvec_continuous(
@@ -156,13 +177,13 @@ bool compute_cloud_bounds(
 
 
 
-pcl_cloudslam::pcl_cloudslam():rclcpp::Node("pcl_cloudslam_node"),viewer(new pcl::visualization::PCLVisualizer("Pointcloud"))
+pcl_cloudslam::pcl_cloudslam():rclcpp::Node("pcl_cloudslam_node")
 {
     RCLCPP_INFO(this->get_logger(), "点云SLAM节点启动");
     const auto package_share_dir = std::filesystem::path(
-        ament_index_cpp::get_package_share_directory("pointcloudslam_cpp")
+        ament_index_cpp::get_package_share_directory("pointcloud_planner")
     );
-    const auto data_dir = package_share_dir / "data";
+    const auto data_dir = std::filesystem::path(POINTCLOUD_PLANNER_SOURCE_DATA_DIR);
     const auto path_planning_dir = data_dir / "path_planning";
     std::filesystem::create_directories(path_planning_dir);
     file_path = data_dir.string() + "/";
@@ -174,8 +195,6 @@ pcl_cloudslam::pcl_cloudslam():rclcpp::Node("pcl_cloudslam_node"),viewer(new pcl
         // 创建 robotstate 订阅者
     robot_state_sub_ = this->create_subscription<ur5_msg::msg::RobotState>(
         "robotstate", 10, std::bind(&pcl_cloudslam::robot_state_callback, this, std::placeholders::_1));    // 创建 robotstate 订阅者
-
-	viewer->setBackgroundColor(0,0,0);
 
     declare_parameter<double>("Leafsize", 0.005);
     declare_parameter<double>("ArroundDistance", 0.01);
@@ -270,7 +289,7 @@ void pcl_cloudslam::pcl_callback(const sensor_msgs::msg::PointCloud2::SharedPtr 
 
 }
 
-void pcl_cloudslam::pcl_filter()
+bool pcl_cloudslam::pcl_filter()
 {
     // save original pointcloud
     is_record=false;
@@ -278,11 +297,9 @@ void pcl_cloudslam::pcl_filter()
     pcl::io::savePCDFileASCII (file_path+"pcl_original.pcd", *cloud);
 
     // read saved pointcloud
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_original(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_original(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::io::loadPCDFile(file_path+"pcl_original.pcd",*cloud_original);
     std::cout << "PointCloud before filtering has: " << cloud_original->points.size() << " data points." << std::endl; //*
-    viewer->addPointCloud(cloud_original, "cloud");
-    viewer->spinOnce(3000);
     //filter
     float leaf;
     get_parameter("Leafsize",leaf);
@@ -291,52 +308,37 @@ void pcl_cloudslam::pcl_filter()
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
 	vg.setInputCloud(cloud_original);
 	vg.setLeafSize(leaf, leaf, leaf);
-	vg.filter(*cloud_filtered);
-	std::cout << "PointCloud after filtering has: " << cloud_filtered->points.size() << " data points." << std::endl; //*
+    vg.filter(*cloud_filtered);
+    std::cout << "PointCloud after filtering has: " << cloud_filtered->points.size() << " data points." << std::endl; //*
     pcl::io::savePCDFileASCII (file_path+"pcl_filter.pcd", *cloud_filtered);
-    viewer->removePointCloud("cloud");
-    viewer->addPointCloud(cloud_filtered, "cloud");
-    viewer->spinOnce (2000);
 
     pose_transform();
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_trans(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::io::loadPCDFile(file_path+"pcl_trans.pcd",*cloud_trans);
-    // 在将点云添加到可视化器前，将视角设置为深度相机正视图（以便方便区域划分）
-    double pose_end[6];
-    double joint_pos[6];
-    double joint_vel[6];
-    bool success = get_current_robot_pose(joint_pos, joint_vel, pose_end);
-    Eigen::Matrix4d end_to_base = Eigen::Matrix4d::Identity();
-    if (success) {
-        end_to_base = calculate_transform_matrix(pose_end);
-    } else {
-        // 使用默认位姿以避免崩溃
-        double default_pose[6] = {0.5, 0.2, 0.3, 0.0, 0.0, 1.57};
-        end_to_base = calculate_transform_matrix(default_pose);
+    RCLCPP_INFO(this->get_logger(), "坐标变换完成，开始加载变换后的点云");
+    if (pcl::io::loadPCDFile(file_path+"pcl_trans.pcd",*cloud_trans) < 0) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to load transformed point cloud: %spcl_trans.pcd", file_path.c_str());
+        return false;
     }
+    RCLCPP_INFO(this->get_logger(), "变换后点云加载完成，点数: %zu", cloud_trans->points.size());
 
-    // 计算相机在基坐标系下的位置与朝向（camera optical axis 为 (0,0,1)）
-    Eigen::Vector4d cam_in_end = camera_to_end_effector * Eigen::Vector4d(0.0, 0.0, 0.0, 1.0);
-    Eigen::Vector3d cam_pos_base = (end_to_base * cam_in_end).head<3>();
-    Eigen::Vector3d cam_dir_base = end_to_base.block<3,3>(0,0) * (camera_to_end_effector.block<3,3>(0,0) * Eigen::Vector3d(0.0, 0.0, 1.0));
-    Eigen::Vector3d cam_up_base = end_to_base.block<3,3>(0,0) * (camera_to_end_effector.block<3,3>(0,0) * Eigen::Vector3d(0.0, -1.0, 0.0));
+    const auto selector_executable = std::filesystem::path(
+        ament_index_cpp::get_package_prefix("pointcloud_planner")
+    ) / "lib" / "pointcloud_planner" / "pcl_select";
+    const auto transformed_cloud_path = std::filesystem::path(file_path) / "pcl_trans.pcd";
+    const auto roi_cloud_path = std::filesystem::path(file_path) / "pcl_roi.pcd";
+    const std::string select_command =
+        shell_quote(selector_executable.string()) + " " +
+        shell_quote(transformed_cloud_path.string()) + " " +
+        shell_quote(roi_cloud_path.string());
 
-    Eigen::Vector3d view_point = cam_pos_base + cam_dir_base;
-
-    viewer->removePointCloud("cloud");
-    viewer->setCameraPosition(
-        cam_pos_base(0), cam_pos_base(1), cam_pos_base(2),
-        view_point(0), view_point(1), view_point(2),
-        cam_up_base(0), cam_up_base(1), cam_up_base(2)
-    );
-    viewer->addPointCloud(cloud_trans, "cloud");
-    viewer->registerAreaPickingCallback(&pcl_cloudslam::areapickingcallback,*this);
-    while (!viewer->wasStopped () && !is_areapicked)
-    {
-        viewer->spinOnce (100);
-        //boost::this_thread::sleep (boost::posix_time::microseconds (100000));
+    RCLCPP_INFO(this->get_logger(), "启动独立 ROI 选择进程: %s", select_command.c_str());
+    const int select_result = std::system(select_command.c_str());
+    if (select_result != 0) {
+        RCLCPP_ERROR(this->get_logger(), "ROI selection process failed with code %d", select_result);
+        return false;
     }
+    RCLCPP_INFO(this->get_logger(), "ROI 选择完成，结果保存到: %s", roi_cloud_path.c_str());
 
     std::string planning_mode;
     double cylinder_view_distance_m;
@@ -345,7 +347,13 @@ void pcl_cloudslam::pcl_filter()
     cylinder_view_distance_m = std::max(0.1, cylinder_view_distance_m);
 
     const bool use_cylinder_preplan = (planning_mode == "cylinder_preplan");
-    if (use_cylinder_preplan) {
+    if (use_cylinder_preplan && !viewer) {
+        RCLCPP_WARN(
+            this->get_logger(),
+            "Cylinder preplan second ROI selection is skipped because ROI selection runs in an external process."
+        );
+    }
+    if (use_cylinder_preplan && viewer) {
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_roi_pre(new pcl::PointCloud<pcl::PointXYZ>);
         if (pcl::io::loadPCDFile(file_path + "pcl_roi.pcd", *cloud_roi_pre) != 0 || cloud_roi_pre->points.size() < 8) {
             RCLCPP_WARN(this->get_logger(), "Cylinder preplan mode enabled, but first ROI is insufficient. Keep first ROI for planning.");
@@ -426,16 +434,19 @@ void pcl_cloudslam::pcl_filter()
                     );
                     while (!viewer->wasStopped () && !is_areapicked)
                     {
-                        viewer->spinOnce (100);
+                        viewer->spinOnce(1, true);
+                        std::this_thread::sleep_for(std::chrono::milliseconds(30));
                     }
                 }
             }
         }
     }
 
-    viewer->removePointCloud("cloud");
+    if (viewer) {
+        viewer->removePointCloud("cloud");
+    }
 
-
+    return true;
 }
 
 
@@ -476,10 +487,19 @@ void pcl_cloudslam::pose_transform()
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_ori(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_trans(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointXYZ point_cloud;
-    pcl::io::loadPCDFile(file_path+"pcl_filter.pcd",*cloud_ori);
+    if (pcl::io::loadPCDFile(file_path+"pcl_filter.pcd",*cloud_ori) < 0) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to load filtered point cloud: %spcl_filter.pcd", file_path.c_str());
+        return;
+    }
+    RCLCPP_INFO(this->get_logger(), "滤波点云加载完成，点数: %zu", cloud_ori->points.size());
     
     // 计算末端到基坐标系的变换矩阵
     Eigen::Matrix4d end_to_base = calculate_transform_matrix(pose_end);
+    if (!end_to_base.allFinite() || !camera_to_end_effector.allFinite()) {
+        RCLCPP_ERROR(this->get_logger(), "Invalid transform matrix: contains NaN or Inf");
+        return;
+    }
+    RCLCPP_INFO(this->get_logger(), "变换矩阵计算完成，开始转换点云");
     
     // 对每个点应用变换
     for(const auto& point : cloud_ori->points)
@@ -499,7 +519,12 @@ void pcl_cloudslam::pose_transform()
         cloud_trans->push_back(point_cloud);
     }
     
-    pcl::io::savePCDFileASCII (file_path+"pcl_trans.pcd", *cloud_trans);
+    RCLCPP_INFO(this->get_logger(), "点云转换完成，点数: %zu，开始保存", cloud_trans->points.size());
+    if (pcl::io::savePCDFileASCII (file_path+"pcl_trans.pcd", *cloud_trans) < 0) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to save transformed point cloud: %spcl_trans.pcd", file_path.c_str());
+        return;
+    }
+    RCLCPP_INFO(this->get_logger(), "变换后点云保存完成");
 }
 
 void pcl_cloudslam::areapickingcallback(const pcl::visualization::AreaPickingEvent &event,void *userdata)
@@ -1487,50 +1512,75 @@ Eigen::Matrix4d pcl_cloudslam::calculate_transform_matrix(const double pose[6])
 
 int main(int argc, char **argv)
 {
+    const auto package_share_dir = std::filesystem::path(
+        ament_index_cpp::get_package_share_directory("pointcloud_planner")
+    );
+    const auto fastdds_profile = package_share_dir / "config" / "fastdds_no_shm.xml";
+    if (setenv("FASTRTPS_DEFAULT_PROFILES_FILE", fastdds_profile.c_str(), 1) != 0) {
+        std::cerr << "Failed to set FASTRTPS_DEFAULT_PROFILES_FILE." << std::endl;
+        return 1;
+    }
+    if (setenv("FASTDDS_DEFAULT_PROFILES_FILE", fastdds_profile.c_str(), 1) != 0) {
+        std::cerr << "Failed to set FASTDDS_DEFAULT_PROFILES_FILE." << std::endl;
+        return 1;
+    }
+
+    if (XInitThreads() == 0) {
+        std::cerr << "Failed to initialize X11 thread support." << std::endl;
+        return 1;
+    }
+
     rclcpp::init(argc, argv);
 
     auto pcl_handle = std::make_shared<pcl_cloudslam>();
-    std::thread spin_thread([&pcl_handle](){ rclcpp ::spin(pcl_handle);});
-    auto shutdown_and_join = [&spin_thread]() {
-        rclcpp::shutdown();
-        if (spin_thread.joinable()) {
-            spin_thread.join();
-        }
-    };
-    sleep(3);
+    rclcpp::Rate collect_rate(30.0);
+    const auto collect_start_time = pcl_handle->now();
+    while (rclcpp::ok() && (pcl_handle->now() - collect_start_time).seconds() < 3.0) {
+        rclcpp::spin_some(pcl_handle);
+        collect_rate.sleep();
+    }
+    rclcpp::spin_some(pcl_handle);
 
-    pcl_handle->pcl_filter();
+    auto shutdown_node = []() {
+        rclcpp::shutdown();
+    };
+
+    if (!pcl_handle->pcl_filter()) {
+        RCLCPP_ERROR(pcl_handle->get_logger(), "Point cloud filtering or ROI selection failed.");
+        shutdown_node();
+        return 1;
+    }
     std::string planning_mode;
     pcl_handle->get_parameter("planning_mode", planning_mode);
     if (pointcloudslam_cpp::is_concave_surface_mode(planning_mode)) {
         if (!pcl_handle->refine_roi_by_platform_and_normal()) {
             RCLCPP_ERROR(pcl_handle->get_logger(), "Concave ROI refinement failed, skip path planning.");
-            shutdown_and_join();
+            shutdown_node();
             return 1;
         }
         if (!pcl_handle->fit_local_workpiece_frame_from_refined_roi()) {
             RCLCPP_ERROR(pcl_handle->get_logger(), "Workpiece frame fitting failed, skip concave planning.");
-            shutdown_and_join();
+            shutdown_node();
             return 1;
         }
         if (!pcl_handle->transform_refined_roi_to_workpiece_frame()) {
             RCLCPP_ERROR(pcl_handle->get_logger(), "Workpiece ROI transform failed, skip concave planning.");
-            shutdown_and_join();
+            shutdown_node();
             return 1;
         }
         if (!pcl_handle->path_plan_concave()) {
             RCLCPP_ERROR(pcl_handle->get_logger(), "Concave path planning failed.");
-            shutdown_and_join();
+            shutdown_node();
             return 1;
         }
         RCLCPP_INFO(pcl_handle->get_logger(), "Concave path planning complete.");
-        shutdown_and_join();
+        shutdown_node();
         return 0;
     }
     pcl_handle->roi_range();
     pcl_handle->grid();
     pcl_handle->path_plan();
     
-    shutdown_and_join();
+    shutdown_node();
     return 0;
 }

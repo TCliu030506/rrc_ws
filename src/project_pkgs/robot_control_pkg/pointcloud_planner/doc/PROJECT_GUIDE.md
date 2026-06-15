@@ -4,7 +4,7 @@
 
 ## 1. 项目一句话概览
 
-`pointcloudslam_cpp` 是一个 ROS2 + PCL 的点云路径规划包。它从 RealSense 深度相机订阅点云，结合 UR5 机械臂当前末端位姿和手眼标定矩阵，把点云转换到机械臂基坐标系；然后通过 PCL 可视化窗口手动框选 ROI，在 ROI 内生成扫描网格，对每个网格点做局部平面拟合，最终输出机械臂 TCP 可执行的路径点文件 `path_map.txt`。
+`pointcloud_planner` 是一个 ROS2 + PCL 的点云路径规划包。它从 RealSense 深度相机订阅点云，结合 UR5 机械臂当前末端位姿和手眼标定矩阵，把点云转换到机械臂基坐标系；然后通过 PCL 可视化窗口手动框选 ROI，在 ROI 内生成扫描网格，对每个网格点做局部平面拟合，最终输出机械臂 TCP 可执行的路径点文件 `path_map.txt`。
 
 当前主流程不是持续在线规划，而是一次性流程：
 
@@ -54,7 +54,7 @@ ROS2 依赖在 `package.xml` 和 `CMakeLists.txt` 中声明，核心包括：
 ├── docs/
 │   └── PROJECT_GUIDE.md
 ├── include/
-│   └── pointcloudslam_cpp/
+│   └── pointcloud_planner/
 │       └── pcl_cloudslam.h
 ├── src/
 │   ├── pcl_cloudslam.cpp      # 主程序：点云处理、ROI、网格、路径规划
@@ -79,7 +79,7 @@ ROS2 依赖在 `package.xml` 和 `CMakeLists.txt` 中声明，核心包括：
 把仓库放进 ROS2 工作空间的 `src` 目录后，在工作空间根目录执行：
 
 ```bash
-colcon build --packages-select pointcloudslam_cpp
+colcon build --packages-select pointcloud_planner
 source install/setup.bash
 ```
 
@@ -94,7 +94,7 @@ ros2 run realsense2_camera realsense2_camera_node \
 启动主规划节点，平面模式：
 
 ```bash
-ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args \
+ros2 run pointcloud_planner pcl_cloudslam --ros-args \
   -p planning_mode:=plane \
   -p probe_length_m:=0.18 \
   -p probe_width_m:=0.075 \
@@ -104,7 +104,7 @@ ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args \
 启动主规划节点，圆柱预规划模式：
 
 ```bash
-ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args \
+ros2 run pointcloud_planner pcl_cloudslam --ros-args \
   -p planning_mode:=cylinder_preplan \
   -p cylinder_view_distance_m:=0.35 \
   -p probe_length_m:=0.18 \
@@ -125,14 +125,14 @@ ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args \
 主程序在 `src/pcl_cloudslam.cpp` 顶部使用了宏：
 
 ```cpp
-#define FILE_PATH "/zzrobot_ws/src/ur5lzh_pkg (1)/ur5lzh_pkg/pointcloudslam_cpp/data/"
-#define PLAN_PATH "/zzrobot_ws/src/ur5lzh_pkg (1)/ur5lzh_pkg/pointcloudslam_cpp/data/path_planning/"
+#define FILE_PATH "/zzrobot_ws/src/ur5lzh_pkg (1)/ur5lzh_pkg/pointcloud_planner/data/"
+#define PLAN_PATH "/zzrobot_ws/src/ur5lzh_pkg (1)/ur5lzh_pkg/pointcloud_planner/data/path_planning/"
 ```
 
 程序会把它们拼到 `$HOME` 后面，所以实际路径类似：
 
 ```text
-$HOME/zzrobot_ws/src/ur5lzh_pkg (1)/ur5lzh_pkg/pointcloudslam_cpp/data/
+$HOME/zzrobot_ws/src/ur5lzh_pkg (1)/ur5lzh_pkg/pointcloud_planner/data/
 ```
 
 如果你把工程放在其他工作空间，最先检查这里。否则会出现 PCD、JSON、`path_map.txt` 找不到或写到旧目录的问题。
@@ -141,7 +141,7 @@ $HOME/zzrobot_ws/src/ur5lzh_pkg (1)/ur5lzh_pkg/pointcloudslam_cpp/data/
 
 注意：辅助工具里的路径宏不完全一致：
 
-- `pcl_select.cpp` 使用 `/zzrobot_ws/src/ur5lzh_pkg/pointcloudslam_cpp/data/`
+- `pcl_select.cpp` 使用 `/zzrobot_ws/src/ur5lzh_pkg/pointcloud_planner/data/`
 - `pcl_cluster.cpp` 默认指向 `/zzrobot_ws/src/ur5lzh_pkg/pointcloud_process/data/back_model/`
 - `pcd_write.cpp` 直接保存到当前工作目录下的 `asd.pcd`
 
@@ -184,7 +184,7 @@ x y z rx ry rz
 
 ## 7. 主类 `pcl_cloudslam`
 
-声明位于 `include/pointcloudslam_cpp/pcl_cloudslam.h`，实现位于 `src/pcl_cloudslam.cpp`。
+声明位于 `include/pointcloud_planner/pcl_cloudslam.h`，实现位于 `src/pcl_cloudslam.cpp`。
 
 核心成员变量：
 
@@ -491,7 +491,7 @@ rotation_vector = axis * angle
 | `load_camera_transform()` | 从 JSON 中加载 `T_cam2gripper` |
 | `calculate_transform_matrix()` | 把末端位姿数组转换为 4x4 齐次矩阵 |
 
-### `include/pointcloudslam_cpp/pcl_cloudslam.h`
+### `include/pointcloud_planner/pcl_cloudslam.h`
 
 主类声明。新增成员变量或公开方法时，需要同步修改这里。
 
@@ -697,7 +697,7 @@ double default_pose[6] = {0.5, 0.2, 0.3, 0.0, 0.0, 1.57};
 
 1. `README.md`：先看启动命令和模式。
 2. `CMakeLists.txt`：看会编译出哪些可执行程序。
-3. `include/pointcloudslam_cpp/pcl_cloudslam.h`：看主类有哪些状态。
+3. `include/pointcloud_planner/pcl_cloudslam.h`：看主类有哪些状态。
 4. `src/pcl_cloudslam.cpp` 的构造函数：看订阅、参数、标定。
 5. `main()`：看一次性执行流程。
 6. `pcl_filter()`：看点云冻结、滤波、ROI 入口。

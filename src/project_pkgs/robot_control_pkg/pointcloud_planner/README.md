@@ -39,7 +39,7 @@ sudo apt-get update && sudo apt-get install -y \
 3.  Build the package using `colcon`:
 
     ```bash
-    colcon build --packages-select pointcloudslam_cpp --symlink-install
+    colcon build --packages-select pointcloud_planner --symlink-install
     ```
 
 ## 启动相机节点
@@ -56,12 +56,18 @@ ros2 run realsense2_camera realsense2_camera_node --ros-args \
   -p enable_accel:=false
 ```
 
+## 启动机械臂节点
+
+```bash
+ros2 launch ur5_msg ur5.launch.py
+```
+
 ## 启动点云规划节点
 
 ### 模式 1：平面模式（原流程）
 ```bash
 source /home/lzh/zzrobot_ws/install/setup.bash
-ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args \
+ros2 run pointcloud_planner pcl_cloudslam --ros-args \
     -p planning_mode:=plane \
     -p probe_length_m:=0.18 \
     -p probe_width_m:=0.075 \
@@ -71,7 +77,7 @@ ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args \
 ### 模式 2：圆柱预规划模式（新流程）
 ```bash
 source /home/lzh/zzrobot_ws/install/setup.bash
-ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args \
+ros2 run pointcloud_planner pcl_cloudslam --ros-args \
     -p planning_mode:=cylinder_preplan \
     -p cylinder_view_distance_m:=0.35 \
     -p probe_length_m:=0.18 \

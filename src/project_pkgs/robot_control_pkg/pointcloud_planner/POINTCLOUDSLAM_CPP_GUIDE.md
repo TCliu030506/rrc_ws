@@ -1,22 +1,22 @@
-# pointcloudslam_cpp 功能包导读
+# pointcloud_planner 功能包导读
 
-本文档用于快速理解 `pointcloudslam_cpp` 的包结构、运行流程和主要实现方式。原 `README.md` 偏向安装和运行命令；本文档偏向代码入门和二次开发。
+本文档用于快速理解 `pointcloud_planner` 的包结构、运行流程和主要实现方式。原 `README.md` 偏向安装和运行命令；本文档偏向代码入门和二次开发。
 
 ## 1. 功能定位
 
-`pointcloudslam_cpp` 是一个 ROS 2 + PCL 的点云处理与扫描路径生成包。当前核心节点 `pcl_cloudslam` 从深度相机订阅点云，将点云从相机坐标系转换到机器人基坐标系，在 PCL 可视化窗口中手动框选 ROI，然后在 ROI 内生成栅格扫描点，并为每个扫描点估计表面高度和姿态，最终输出机器人 TCP 扫描轨迹。
+`pointcloud_planner` 是一个 ROS 2 + PCL 的点云处理与扫描路径生成包。当前核心节点 `pcl_cloudslam` 从深度相机订阅点云，将点云从相机坐标系转换到机器人基坐标系，在 PCL 可视化窗口中手动框选 ROI，然后在 ROI 内生成栅格扫描点，并为每个扫描点估计表面高度和姿态，最终输出机器人 TCP 扫描轨迹。
 
 它目前更接近“点云辅助路径规划”而不是完整 SLAM 系统：代码中没有回环检测、地图优化或多帧位姿图优化，主要工作是单帧点云采集、坐标变换、局部表面拟合和路径导出。
 
 ## 2. 目录结构
 
 ```text
-pointcloudslam_cpp/
+pointcloud_planner/
 ├── CMakeLists.txt
 ├── package.xml
 ├── README.md
 ├── POINTCLOUDSLAM_CPP_GUIDE.md
-├── include/pointcloudslam_cpp/
+├── include/pointcloud_planner/
 │   └── pcl_cloudslam.h
 ├── src/
 │   ├── pcl_cloudslam.cpp
@@ -38,7 +38,7 @@ pointcloudslam_cpp/
 
 关键目录说明：
 
-- `include/pointcloudslam_cpp/pcl_cloudslam.h`：声明主节点类 `pcl_cloudslam`，包括点云订阅、机器人状态订阅、ROI、路径规划和手眼标定加载接口。
+- `include/pointcloud_planner/pcl_cloudslam.h`：声明主节点类 `pcl_cloudslam`，包括点云订阅、机器人状态订阅、ROI、路径规划和手眼标定加载接口。
 - `src/pcl_cloudslam.cpp`：主流程实现，是最重要的文件。
 - `src/pcd_write.cpp`：简单点云订阅器，把相机点云保存成 `asd.pcd`。
 - `src/pcl_cluster.cpp`：读取 PCD 文件并可视化，主要用于离线查看点云。
@@ -57,7 +57,7 @@ pointcloudslam_cpp/
 构建命令：
 
 ```bash
-colcon build --packages-select pointcloudslam_cpp --symlink-install
+colcon build --packages-select pointcloud_planner --symlink-install
 ```
 
 构建成功后加载环境：
@@ -94,7 +94,7 @@ pcl_cloudslam
 运行示例：
 
 ```bash
-ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args \
+ros2 run pointcloud_planner pcl_cloudslam --ros-args \
   -p planning_mode:=plane \
   -p probe_length_m:=0.18 \
   -p probe_width_m:=0.075
@@ -105,7 +105,7 @@ ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args \
 订阅 `/camera/camera/depth/color/points`，将收到的点云保存为当前工作目录下的 `asd.pcd`。适合先确认相机点云是否正常。
 
 ```bash
-ros2 run pointcloudslam_cpp pcd_write
+ros2 run pointcloud_planner pcd_write
 ```
 
 ### pcl_cluster
@@ -113,7 +113,7 @@ ros2 run pointcloudslam_cpp pcd_write
 从终端输入 PCD 文件名或路径，读取并显示点云。它支持绝对路径、相对路径和默认目录文件名。没有 `DISPLAY` 时会跳过可视化，只检查文件能否读取。
 
 ```bash
-ros2 run pointcloudslam_cpp pcl_cluster
+ros2 run pointcloud_planner pcl_cluster
 ```
 
 ### pcl_select
@@ -331,7 +331,7 @@ data/path_planning/path_map.txt
 示例：
 
 ```bash
-ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args \
+ros2 run pointcloud_planner pcl_cloudslam --ros-args \
   -p planning_mode:=cylinder_preplan \
   -p Leafsize:=0.004 \
   -p x_step:=0.004 \
@@ -401,14 +401,14 @@ ros2 topic echo /robotstate
 3. 构建功能包：
 
 ```bash
-colcon build --packages-select pointcloudslam_cpp --symlink-install
+colcon build --packages-select pointcloud_planner --symlink-install
 source install/setup.bash
 ```
 
 4. 运行主节点：
 
 ```bash
-ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args \
+ros2 run pointcloud_planner pcl_cloudslam --ros-args \
   -p planning_mode:=plane
 ```
 
@@ -462,7 +462,7 @@ PCLVisualizer 需要 GUI 环境。如果在 SSH 或无桌面环境中运行，�
 
 优先阅读顺序：
 
-1. `include/pointcloudslam_cpp/pcl_cloudslam.h`：先看成员变量和函数边界。
+1. `include/pointcloud_planner/pcl_cloudslam.h`：先看成员变量和函数边界。
 2. `src/pcl_cloudslam.cpp` 的构造函数：理解话题、参数和标定加载。
 3. `pcl_filter()`：理解点云固定、下采样、坐标变换和 ROI 交互。
 4. `roi_range()` 与 `grid()`：理解有效扫描区域和蛇形路径。

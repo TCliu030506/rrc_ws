@@ -24,6 +24,7 @@ find_package(PCL REQUIRED COMPONENTS common io visualization filters segmentatio
 find_package(std_msgs REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(X11 REQUIRED)
 # 查找 ur5_msg 包（关键步骤）
 find_package(ur5_msg REQUIRED)
 # find_package(puncture_model REQUIRED)
@@ -56,6 +57,9 @@ add_executable(pcl_cloudslam
   src/concave_workpiece_frame.cpp
   src/concave_path_planning.cpp
 )
+target_compile_definitions(pcl_cloudslam PRIVATE
+  POINTCLOUD_PLANNER_SOURCE_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
+)
 # dependencies
 ament_target_dependencies(pcd_write rclcpp sensor_msgs pcl_conversions)
 ament_target_dependencies(pcl_cluster pcl_conversions)
@@ -72,7 +76,7 @@ target_link_libraries(pcd_write ${PCL_LIBRARIES})
 target_link_libraries(pcl_cluster ${PCL_LIBRARIES})
 target_link_libraries(pcl_select ${PCL_LIBRARIES})
 target_link_libraries(curve_polyfit ${PCL_LIBRARIES})
-target_link_libraries(pcl_cloudslam ${PCL_LIBRARIES})
+target_link_libraries(pcl_cloudslam ${PCL_LIBRARIES} X11::X11)
 # target_link_libraries(read_robot_state ${x_core_sdk_LIBRARIES})
 # # 在 target_link_libraries 中添加 realsense2
 # target_link_libraries(pcl_cloudslam
@@ -85,7 +89,9 @@ install(TARGETS pcl_cluster DESTINATION lib/${PROJECT_NAME})
 install(TARGETS pcl_select DESTINATION lib/${PROJECT_NAME})
 install(TARGETS curve_polyfit DESTINATION lib/${PROJECT_NAME})
 install(TARGETS pcl_cloudslam DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/move_test.py DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY data/ DESTINATION share/${PROJECT_NAME}/data)
+install(DIRECTORY config/ DESTINATION share/${PROJECT_NAME}/config)
 
 # 设置包含目录
 include_directories(

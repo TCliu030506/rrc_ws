@@ -13,7 +13,7 @@
 #include <filesystem>
 #include <iostream>
 
-// #define FILE_PATH "/zzrobot_ws/src/ur5lzh_pkg/pointcloudslam_cpp/data/"
+// #define FILE_PATH "/zzrobot_ws/src/ur5lzh_pkg/pointcloud_planner/data/"
 #define FILE_PATH "/zzrobot_ws/src/ur5lzh_pkg/pointcloud_process/data/back_model/"
 
 int main(int argc, char** argv)

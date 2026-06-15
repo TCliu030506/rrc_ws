@@ -368,7 +368,7 @@ rx/ry/rz：机械臂基坐标系下 TCP 姿态旋转向量
 
 ## 5. 建议新增数据结构
 
-建议在 `include/pointcloudslam_cpp/pcl_cloudslam.h` 中新增结构体：
+建议在 `include/pointcloud_planner/pcl_cloudslam.h` 中新增结构体：
 
 ```cpp
 struct WorkpieceFrame
@@ -769,8 +769,8 @@ bool pcl_cloudslam::polyfit_workpiece(const Eigen::Vector2d& point_uv, double (&
 至少验证：
 
 ```bash
-ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args -p planning_mode:=plane
-ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args -p planning_mode:=cylinder_preplan
+ros2 run pointcloud_planner pcl_cloudslam --ros-args -p planning_mode:=plane
+ros2 run pointcloud_planner pcl_cloudslam --ros-args -p planning_mode:=cylinder_preplan
 ```
 
 检查：
@@ -786,7 +786,7 @@ ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args -p planning_mode:=cylinder_
 运行：
 
 ```bash
-ros2 run pointcloudslam_cpp pcl_cloudslam --ros-args \
+ros2 run pointcloud_planner pcl_cloudslam --ros-args \
   -p planning_mode:=oriented_plane \
   -p workpiece_frame_method:=pca
 ```

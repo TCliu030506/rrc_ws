@@ -17,6 +17,9 @@
   <depend>pcl_ros</depend>
   <depend>std_msgs</depend>
   <depend>ament_index_cpp</depend>
+  <depend>ament_index_python</depend>
+  <depend>rclpy</depend>
+  <depend>ur5_control</depend>
   <depend>libpcl-all-dev</depend>
   <depend>libeigen3-dev</depend>
   <depend>nlohmann-json-dev</depend>

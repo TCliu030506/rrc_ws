@@ -1,4 +1,4 @@
-#include "../include/pointcloudslam_cpp/pcl_cloudslam.h"
+#include "../include/pointcloud_planner/pcl_cloudslam.h"
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <filesystem>
 #include <fstream>
@@ -71,7 +71,7 @@ pcl_cloudslam::pcl_cloudslam():rclcpp::Node("pcl_cloudslam_node"),viewer(new pcl
 {
     RCLCPP_INFO(this->get_logger(), "点云SLAM节点启动");
     const auto package_share_dir = std::filesystem::path(
-        ament_index_cpp::get_package_share_directory("pointcloudslam_cpp")
+        ament_index_cpp::get_package_share_directory("pointcloud_planner")
     );
     const auto data_dir = package_share_dir / "data";
     const auto path_planning_dir = data_dir / "path_planning";

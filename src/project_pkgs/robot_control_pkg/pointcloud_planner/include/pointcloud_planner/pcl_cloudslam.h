@@ -72,7 +72,7 @@ public:
     pcl_cloudslam();
     ~pcl_cloudslam();
 
-    void pcl_filter();
+    bool pcl_filter();
     bool refine_roi_by_platform_and_normal();
     bool fit_local_workpiece_frame_from_refined_roi();
     bool transform_refined_roi_to_workpiece_frame();
