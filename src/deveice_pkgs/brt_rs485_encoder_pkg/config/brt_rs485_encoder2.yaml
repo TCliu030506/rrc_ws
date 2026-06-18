@@ -10,8 +10,8 @@ brt_rs485_encoder_node:
     scan_interval_sec: 5.0
     resolution: 4096
     sample_time_ms: 100
-    position_sign: 1.0
-    angle_offset_rad: -3.14159265
+    position_sign: -1.0
+    angle_offset_rad: 3.056
     zero_offset_count: 0
     reconnect_interval_sec: 2.0
     dry_run: false

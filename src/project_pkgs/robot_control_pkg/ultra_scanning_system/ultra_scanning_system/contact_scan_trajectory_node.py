@@ -59,6 +59,7 @@ class ContactScanTrajectoryNode(Node):
         self.declare_parameter('path_file', '')
         self.declare_parameter('publish_rate', 50.0)
         self.declare_parameter('max_linear_speed', 0.005)
+        self.declare_parameter('approach_linear_speed', 0.0)
         self.declare_parameter('max_angular_speed', 0.05)
         self.declare_parameter('max_path_linear_step', 0.001)
         self.declare_parameter('max_path_angular_step', 0.01)
@@ -93,6 +94,9 @@ class ContactScanTrajectoryNode(Node):
         self.control_wrench_frame = str(self.get_parameter('control_wrench_frame').value)
         self.publish_rate = float(self.get_parameter('publish_rate').value)
         self.max_linear_speed = float(self.get_parameter('max_linear_speed').value)
+        self.approach_linear_speed = float(
+            self.get_parameter('approach_linear_speed').value
+        )
         self.max_angular_speed = float(self.get_parameter('max_angular_speed').value)
         self.max_path_linear_step = float(
             self.get_parameter('max_path_linear_step').value
@@ -133,6 +137,10 @@ class ContactScanTrajectoryNode(Node):
 
         if self.publish_rate <= 0.0:
             raise ValueError('publish_rate must be > 0')
+        if self.approach_linear_speed < 0.0:
+            raise ValueError('approach_linear_speed must be >= 0')
+        if self.approach_linear_speed == 0.0:
+            self.approach_linear_speed = self.max_linear_speed
         if self.pre_contact_speed < 0.0:
             raise ValueError('pre_contact_speed must be >= 0')
 
@@ -272,7 +280,11 @@ class ContactScanTrajectoryNode(Node):
             # 接近阶段还不做恒力导纳。发布当前实测 wrench 作为控制
             # wrench，抵消导纳方程中的外力项，使执行链近似退化为位置跟踪。
             self._publish_measured_control_wrench()
-            self._ensure_trajectory([self.path_points[0]], loop_path=False)
+            self._ensure_trajectory(
+                [self.path_points[0]],
+                loop_path=False,
+                max_linear_speed=self.approach_linear_speed,
+            )
             command = self._advance_trajectory(dt)
             if command.finished:
                 self._set_state(
@@ -488,6 +500,7 @@ class ContactScanTrajectoryNode(Node):
         *,
         loop_path: bool,
         start_pose: PoseState | None = None,
+        max_linear_speed: float | None = None,
     ) -> None:
         """按当前真实位姿创建一段新的时间参数化轨迹."""
         if self.trajectory is not None:
@@ -496,7 +509,9 @@ class ContactScanTrajectoryNode(Node):
         self.trajectory = PathMapTrajectory(
             waypoints=waypoints,
             start_pose=start_pose or self.current_pose,
-            max_linear_speed=self.max_linear_speed,
+            max_linear_speed=(
+                self.max_linear_speed if max_linear_speed is None else max_linear_speed
+            ),
             max_angular_speed=self.max_angular_speed,
             min_segment_duration=0.0,
             loop_path=loop_path,

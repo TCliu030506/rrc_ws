@@ -31,8 +31,8 @@ def default_command_specs() -> list[CommandSpec]:
             command=[
                 "ros2",
                 "launch",
-                "pointcloudslam_cpp",
-                "point_cloud_slam.launch.py",
+                "pointcloud_planner",
+                "point_cloud_planning.launch.py",
             ],
         ),
         CommandSpec(

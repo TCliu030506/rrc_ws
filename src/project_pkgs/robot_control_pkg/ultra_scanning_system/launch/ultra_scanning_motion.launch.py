@@ -40,7 +40,7 @@ CONTROL_WRENCH_TOPIC = '/arm_admittance_control/control_wrench'
 
 # Path-map trajectory 参数
 PATH_MAP_PUBLISH_RATE = 200.0
-PATH_MAP_MAX_LINEAR_SPEED = 0.008
+PATH_MAP_MAX_LINEAR_SPEED = 0.002
 PATH_MAP_MAX_ANGULAR_SPEED = 0.05
 PATH_MAP_LOOP_PATH = False
 PATH_MAP_ENABLE_RESAMPLING = True
@@ -61,7 +61,8 @@ CONTACT_SCAN_TORQUE_RAMP_RATE = 0.05
 CONTACT_SCAN_SETTLE_DURATION = 0.5
 CONTACT_SCAN_SETTLE_FORCE_TOLERANCE = 8.0
 CONTACT_SCAN_MAX_CONTACT_FORCE = 50.0
-CONTACT_SCAN_MAX_SEARCH_DISTANCE = 0.1
+CONTACT_SCAN_MAX_SEARCH_DISTANCE = 0.5
+CONTACT_SCAN_APPROACH_LINEAR_SPEED = 0.05
 CONTACT_SCAN_PRE_CONTACT_SPEED = 0.0001
 CONTACT_SCAN_RETRACT_DISTANCE = 0.05
 CONTACT_SCAN_STATE_TOPIC = '/contact_scan/state'
@@ -71,8 +72,8 @@ SCAN_POSE_MUX_ADMITTANCE_BLEND_DURATION = 0.001
 SERVO_ENABLE_DEBUG_POSE_PUBLISH = True
 SERVO_SPEED = 0.15
 SERVO_ACCELERATION = 0.1
-SERVO_LOOKAHEAD_TIME = 0.1
-SERVO_GAIN = 300.0
+SERVO_LOOKAHEAD_TIME = 0.15
+SERVO_GAIN = 200.0
 SERVO_TF_LOOKUP_TIMEOUT_SEC = 0.05
 
 
@@ -87,9 +88,13 @@ def _launch_file(package_name: str, *path_parts: str) -> PythonLaunchDescription
 
 def generate_launch_description():
     path_map_file = PathJoinSubstitution([
-        FindPackageShare('robot_trajectory_planner'),
-        'data',
-        'path_map_offset.txt',
+        # FindPackageShare('robot_trajectory_planner'),
+        # 'data',
+        # 'path_map_offset.txt',
+        FindPackageShare('pointcloud_planner'),
+        'data/path_planning',
+        'path_map_concave.txt',
+        # 'path_map.txt',
     ])
 
     # 节点定义和参数配置
@@ -191,6 +196,7 @@ def generate_launch_description():
             'path_file': path_map_file,
             'publish_rate': PATH_MAP_PUBLISH_RATE,
             'max_linear_speed': PATH_MAP_MAX_LINEAR_SPEED,
+            'approach_linear_speed': CONTACT_SCAN_APPROACH_LINEAR_SPEED,
             'max_angular_speed': PATH_MAP_MAX_ANGULAR_SPEED,
             'max_path_linear_step': PATH_MAP_MAX_LINEAR_STEP,
             'max_path_angular_step': PATH_MAP_MAX_ANGULAR_STEP,

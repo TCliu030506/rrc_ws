@@ -1,5 +1,6 @@
 #include <cassert>
 #include <cmath>
+#include <iostream>
 
 #include "pointcloud_planner/concave_path_planning.h"
 
@@ -58,6 +59,33 @@ int main()
     assert(std::isfinite(point.normal(2)));
     assert(point.normal(2) > 0.0);
     assert(std::abs(point.rotation_workpiece.determinant() - 1.0) < 1e-6);
+  }
+
+  params.align_x_axis_to_scan_direction = false;
+  pointcloudslam_cpp::ConcavePathResult continuous_result;
+  const bool continuous_ok = pointcloudslam_cpp::generate_concave_path(
+    cloud,
+    Eigen::Matrix4d::Identity(),
+    params,
+    Eigen::Vector3d::Zero(),
+    Eigen::Matrix3d::Identity(),
+    &continuous_result);
+  assert(continuous_ok);
+
+  double max_neighbor_angle = 0.0;
+  for (size_t i = 1; i < continuous_result.workpiece_points.size(); ++i) {
+    const Eigen::Quaterniond previous(
+      continuous_result.workpiece_points[i - 1].rotation_workpiece);
+    const Eigen::Quaterniond current(
+      continuous_result.workpiece_points[i].rotation_workpiece);
+    const double dot = std::abs(previous.dot(current));
+    const double angle = 2.0 * std::acos(std::min(1.0, std::max(-1.0, dot)));
+    max_neighbor_angle = std::max(max_neighbor_angle, angle);
+  }
+  if (max_neighbor_angle > 0.5) {
+    std::cerr << "Expected continuous orientation, max_neighbor_angle_deg="
+              << max_neighbor_angle * 180.0 / M_PI << "\n";
+    return 1;
   }
 
   return 0;

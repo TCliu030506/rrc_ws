@@ -20,6 +20,8 @@
   <depend>ament_index_python</depend>
   <depend>rclpy</depend>
   <depend>ur5_control</depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
   <depend>libpcl-all-dev</depend>
   <depend>libeigen3-dev</depend>
   <depend>nlohmann-json-dev</depend>

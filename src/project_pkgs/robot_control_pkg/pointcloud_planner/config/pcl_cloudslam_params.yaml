@@ -7,6 +7,12 @@ pcl_cloudslam_node:
     # 调大：点更少、速度更快、细节更少；调小：点更多、细节更多、计算更慢。
     Leafsize: 0.0005
 
+    # 相机坐标系下的最小保留距离，单位 m；小于该距离的近处夹具遮挡点会在粗 ROI 前删除。
+    min_camera_distance_m: 0.30
+
+    # 相机坐标系下的最大保留距离，单位 m；大于该距离的远处背景点会在粗 ROI 前删除。
+    max_camera_distance_m: 2.00
+
     # 路径点局部平面拟合搜索半径，单位 m。
     # 调大：拟合更稳定但更平滑；调小：更贴局部细节但更容易点数不足。
     ArroundDistance: 0.01
@@ -32,10 +38,10 @@ pcl_cloudslam_node:
     # 若输出路径希望控制 TCP 而不是探头尖端，需要按实际夹具标定填写。
     tool_tip_x: 0.0
     tool_tip_y: 0.0
-    tool_tip_z: 0.0
+    tool_tip_z: -0.00
 
     # 路径点离表面的安全抬高距离，单位 m。
-    surface_clearance: 0.010
+    surface_clearance: 0.006
 
     # 相邻路径点 z 方向最大变化限制，单位 m，用于抑制突变。
     max_dz_step: 0.003
@@ -49,9 +55,10 @@ pcl_cloudslam_node:
     # =========================
     # 3. 规划模式与探头尺寸
     # =========================
-    # 可选：plane / cylinder_preplan / concave_surface
+    # 可选：plane / cylinder_preplan / concave_surface / premodel_concave_surface
     # plane：平面 ROI 扫查；cylinder_preplan：圆柱预规划；concave_surface：凹曲面模式。
-    planning_mode: concave_surface
+    # premodel_concave_surface：沿用凹曲面 ROI 和工件坐标系，使用预设圆锥面模型规划路径。
+    planning_mode: premodel_concave_surface
 
     # 探头有效长度/宽度，单位 m，用于 ROI 边界收缩，避免探头越界。
     probe_length_m: 0.18
@@ -59,7 +66,7 @@ pcl_cloudslam_node:
 
     # 探头边界额外安全余量，单位 m。
     # 调大：路径离 ROI 边缘更远；调小：覆盖区域更大但越界风险增加。
-    probe_boundary_margin_m: 0.0
+    probe_boundary_margin_m: 0.04
 
     # cylinder_preplan 二次视角距离，单位 m。
     cylinder_view_distance_m: 0.35
@@ -103,7 +110,7 @@ pcl_cloudslam_node:
     workpiece_center_percentile_high: 95.0
 
     # 工件法向拟合半径，单位 m。
-    workpiece_normal_fit_radius: 0.03
+    workpiece_normal_fit_radius: 0.05
 
     # 工件法向拟合邻域点数和最少有效点数。
     workpiece_normal_fit_k: 100
@@ -122,13 +129,13 @@ pcl_cloudslam_node:
     # 6. 凹曲面路径生成
     # =========================
     # 探头径向有效长度，单位 m。
-    concave_probe_radial_length: 0.03
+    concave_probe_radial_length: 0.05
 
     # 凹曲面径向分层步长，单位 m。
     concave_radial_step: 0.02
 
     # 凹曲面边界安全余量，单位 m。
-    concave_boundary_margin: 0.020
+    concave_boundary_margin: 0.080
 
     # 凹曲面内端保留半径，单位 m。
     concave_r_end: 0.008
@@ -141,7 +148,7 @@ pcl_cloudslam_node:
     concave_delta_phi_max_deg: 5.0
 
     # 局部曲面拟合窗口，半径单位 m，角度单位 deg。
-    concave_r_fit: 0.02
+    concave_r_fit: 0.05
     concave_phi_fit_deg: 5.0
 
     # 局部曲面拟合最少点数。
@@ -152,7 +159,7 @@ pcl_cloudslam_node:
     concave_min_normal_fit_points: 50
 
     # 凹曲面法向平滑系数，范围一般 0.0-1.0。
-    concave_normal_smoothing_alpha: 0.1
+    concave_normal_smoothing_alpha: 0.05
 
     # 凹曲面进给方向插补步长，单位 m。
     concave_feed_step: 0.002
@@ -167,3 +174,8 @@ pcl_cloudslam_node:
     # 凹曲面路径质量下限。
     concave_min_total_path_points: 20
     concave_min_valid_points_per_layer: 8
+
+    # 预设凹曲面圆锥模型：顶点在工件坐标系原点，底面朝 +Z，底面平行 XOY。
+    premodel_cone_base_diameter: 0.45
+    premodel_cone_generatrix_angle_deg: 7.0
+    premodel_cone_sample_spacing: 0.0005

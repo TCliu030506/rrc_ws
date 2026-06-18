@@ -21,10 +21,10 @@ class URCONTROL:
         # self.rtde_c.setTcp([0.0, 0.0339, 0.208, 0.0, 0.0, 0.0])
         # # Set TCP offset if needed（LZH-平动）
         # self.rtde_c.setTcp([0.0, 0.0, 0.22, 0.0, 0.0, 0.0])
-        # Set TCP offset if needed（LZH-旋转）
-        self.rtde_c.setTcp([0.0, 0.0, 0.60, 0.0, 0.0, 0.0])
-        # # Set TCP offset if needed（默认测试）
-        # self.rtde_c.setTcp([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        # # Set TCP offset if needed（LZH-旋转）
+        # self.rtde_c.setTcp([0.0, 0.0, 0.60, 0.0, 0.0, 0.0])
+        # Set TCP offset if needed（默认测试）
+        self.rtde_c.setTcp([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
         # Define servoL parameters
         self.speed = 0.15  # m/s
@@ -142,9 +142,9 @@ def main():
     target_pose[5] = 0.0 # 设置目标姿态的第五个元素为0.0
     pose = ur.get_tcp_pose()
     print("初始的TCP姿态: \n", pose)
-    ur.sevol_l(target_pose)
-    pose = ur.get_tcp_pose()
-    print("运动后的TCP姿态: \n", pose)
+    # ur.sevol_l(target_pose)
+    # pose = ur.get_tcp_pose()
+    # print("运动后的TCP姿态: \n", pose)
 
 if __name__ == '__main__':
 

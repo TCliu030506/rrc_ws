@@ -29,6 +29,7 @@ namespace pointcloudslam_cpp {
     double feed_step = 0.003;
     bool enable_transition_points = true;
     bool tool_z_negative_normal = true;
+    bool align_x_axis_to_scan_direction = true;
     int min_total_path_points = 20;
     int min_valid_points_per_layer = 8;
     double surface_clearance = 0.005;

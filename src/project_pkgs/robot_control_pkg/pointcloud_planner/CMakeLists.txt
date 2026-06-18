@@ -89,7 +89,12 @@ install(TARGETS pcl_cluster DESTINATION lib/${PROJECT_NAME})
 install(TARGETS pcl_select DESTINATION lib/${PROJECT_NAME})
 install(TARGETS curve_polyfit DESTINATION lib/${PROJECT_NAME})
 install(TARGETS pcl_cloudslam DESTINATION lib/${PROJECT_NAME})
-install(PROGRAMS scripts/move_test.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS
+  scripts/move_test.py
+  scripts/servol_trajectory_test.py
+  scripts/pcd_surface_error.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 install(DIRECTORY data/ DESTINATION share/${PROJECT_NAME}/data)
 install(DIRECTORY config/ DESTINATION share/${PROJECT_NAME}/config)
 
@@ -143,6 +148,14 @@ if(BUILD_TESTING)
   )
   target_link_libraries(test_concave_path_planning ${PCL_LIBRARIES})
   add_test(NAME test_concave_path_planning COMMAND test_concave_path_planning)
+  add_executable(test_camera_distance_filter test/test_camera_distance_filter.cpp)
+  target_include_directories(test_camera_distance_filter PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    "$<INSTALL_INTERFACE:include>"
+    ${PCL_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_camera_distance_filter ${PCL_LIBRARIES})
+  add_test(NAME test_camera_distance_filter COMMAND test_camera_distance_filter)
   # the following line skips the linter which checks for copyrights
   # comment the line when a copyright and license is added to all source files
   set(ament_cmake_copyright_FOUND TRUE)

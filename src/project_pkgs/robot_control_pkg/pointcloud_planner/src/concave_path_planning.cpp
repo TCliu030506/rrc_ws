@@ -250,7 +250,7 @@ bool build_orientation(
     return false;
   }
   x_axis.normalize();
-  if (reverse_scan) {
+  if (reverse_scan && params.align_x_axis_to_scan_direction) {
     x_axis = -x_axis;
   }
 

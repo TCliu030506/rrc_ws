@@ -30,6 +30,59 @@ def test_timer_does_not_periodically_publish_state_without_state_change():
     assert publish_calls == []
 
 
+def test_approach_uses_dedicated_linear_speed_for_initial_move():
+    node = object.__new__(ContactScanTrajectoryNode)
+    target_pose = PoseState(
+        position=(0.1, 0.2, 0.3),
+        orientation_xyzw=(0.0, 0.0, 0.0, 1.0),
+    )
+    node.last_time = None
+    node.current_pose = PoseState(
+        position=(0.0, 0.0, 0.0),
+        orientation_xyzw=(0.0, 0.0, 0.0, 1.0),
+    )
+    node.latest_wrench = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    node.state = ContactScanState.APPROACH
+    node.force_axis = 'z'
+    node.force_axis_sign = -1.0
+    node.max_contact_force = 20.0
+    node.path_points = [target_pose]
+    node.approach_linear_speed = 0.002
+    captured = {}
+    command = type(
+        'Command',
+        (),
+        {
+            'finished': False,
+            'pose': target_pose,
+            'twist_linear': (0.0, 0.0, 0.0),
+            'twist_angular': (0.0, 0.0, 0.0),
+        },
+    )()
+    node._publish_measured_control_wrench = lambda: None
+
+    def capture_trajectory(
+        waypoints,
+        loop_path,
+        start_pose=None,
+        max_linear_speed=None,
+    ):
+        captured.update(
+            waypoints=waypoints,
+            max_linear_speed=max_linear_speed,
+        )
+
+    node._ensure_trajectory = capture_trajectory
+    node._advance_trajectory = lambda dt: command
+    node._publish_command = lambda command: None
+    node._set_state = lambda new_state, reason: setattr(node, 'state', new_state)
+
+    ContactScanTrajectoryNode._on_timer(node)
+
+    assert captured['waypoints'] == [target_pose]
+    assert captured['max_linear_speed'] == node.approach_linear_speed
+
+
 def test_pre_contact_enters_settle_from_measured_force_and_actual_offset():
     node = object.__new__(ContactScanTrajectoryNode)
     last_command_pose = PoseState(

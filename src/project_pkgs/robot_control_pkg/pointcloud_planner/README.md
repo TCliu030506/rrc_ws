@@ -103,3 +103,12 @@ ros2 run pointcloud_planner pcl_cloudslam --ros-args \
 
 ## 输出文件
 - 路径文件：`data/path_planning/path_map.txt`
+
+
+## 测试
+- `servol_trajectory_test.py`：测试点云规划节点的轨迹规划功能。
+
+指令：
+```bash
+ros2 run pointcloud_planner servol_trajectory_test.py   --execute
+```

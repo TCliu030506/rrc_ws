@@ -2,6 +2,7 @@
 #include "../include/pointcloud_planner/concave_path_planning.h"
 #include "../include/pointcloud_planner/concave_roi_refinement.h"
 #include "../include/pointcloud_planner/concave_workpiece_frame.h"
+#include "../include/pointcloud_planner/camera_distance_filter.h"
 #include "../include/pointcloud_planner/roi_mode_utils.h"
 #include <ament_index_cpp/get_package_prefix.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
@@ -72,6 +73,41 @@ std::string shell_quote(const std::string &value)
     }
     quoted += "'";
     return quoted;
+}
+
+PointCloudXYZ::Ptr build_premodel_cone_cloud(
+    double base_diameter,
+    double generatrix_angle_deg,
+    double sample_spacing)
+{
+    PointCloudXYZ::Ptr cloud_model(new PointCloudXYZ);
+    const double radius_max = 0.5 * base_diameter;
+    if (radius_max <= 0.0 || generatrix_angle_deg <= 0.0 || sample_spacing <= 0.0) {
+        return cloud_model;
+    }
+
+    const double angle_rad = generatrix_angle_deg * M_PI / 180.0;
+    const double slope = std::tan(angle_rad);
+    const double radial_step = std::max(0.5 * sample_spacing, 0.001);
+    for (double rho = radial_step; rho <= radius_max + 1e-9; rho += radial_step) {
+        const int phi_count = std::max(
+            16,
+            static_cast<int>(std::ceil(2.0 * M_PI * rho / sample_spacing))
+        );
+        for (int i = 0; i < phi_count; ++i) {
+            const double phi = 2.0 * M_PI * static_cast<double>(i) /
+                static_cast<double>(phi_count);
+            pcl::PointXYZ point;
+            point.x = static_cast<float>(rho * std::cos(phi));
+            point.y = static_cast<float>(rho * std::sin(phi));
+            point.z = static_cast<float>(rho * slope);
+            cloud_model->points.push_back(point);
+        }
+    }
+    cloud_model->width = static_cast<uint32_t>(cloud_model->points.size());
+    cloud_model->height = 1;
+    cloud_model->is_dense = false;
+    return cloud_model;
 }
 
 Eigen::Vector3d rotation_matrix_to_rotvec_continuous(
@@ -197,6 +233,8 @@ pcl_cloudslam::pcl_cloudslam():rclcpp::Node("pcl_cloudslam_node")
         "robotstate", 10, std::bind(&pcl_cloudslam::robot_state_callback, this, std::placeholders::_1));    // 创建 robotstate 订阅者
 
     declare_parameter<double>("Leafsize", 0.005);
+    declare_parameter<double>("min_camera_distance_m", 0.30);
+    declare_parameter<double>("max_camera_distance_m", 2.00);
     declare_parameter<double>("ArroundDistance", 0.01);
     declare_parameter<double>("x_step",0.0035);
     declare_parameter<double>("y_step",0.064);
@@ -253,6 +291,9 @@ pcl_cloudslam::pcl_cloudslam():rclcpp::Node("pcl_cloudslam_node")
     declare_parameter<std::string>("concave_tool_z_align", "negative_normal");
     declare_parameter<int>("concave_min_total_path_points", 20);
     declare_parameter<int>("concave_min_valid_points_per_layer", 8);
+    declare_parameter<double>("premodel_cone_base_diameter", 0.45);
+    declare_parameter<double>("premodel_cone_generatrix_angle_deg", 7.0);
+    declare_parameter<double>("premodel_cone_sample_spacing", 0.002);
     // 加载相机变换矩阵
     std::string camera_transform_path = file_path + "hand_eye_calibration.json";
     RCLCPP_INFO(this->get_logger(), "Loading camera transform from: %s", camera_transform_path.c_str());
@@ -283,6 +324,15 @@ void pcl_cloudslam::pcl_callback(const sensor_msgs::msg::PointCloud2::SharedPtr 
     if(is_record)
     {
         pcl::fromROSMsg(*msg, *cloud);
+        double min_camera_distance_m;
+        double max_camera_distance_m;
+        get_parameter("min_camera_distance_m", min_camera_distance_m);
+        get_parameter("max_camera_distance_m", max_camera_distance_m);
+        cloud = pointcloudslam_cpp::filter_camera_distance_range(
+            cloud,
+            min_camera_distance_m,
+            max_camera_distance_m
+        );
         //pcl::io::savePCDFileASCII (file_path+"pcl_original.pcd", *cloud_update);
         //RCLCPP_INFO(this->get_logger(), "points_size(%d,%d)",msg->height,msg->width);
     }
@@ -839,10 +889,46 @@ bool pcl_cloudslam::transform_refined_roi_to_workpiece_frame()
 bool pcl_cloudslam::path_plan_concave()
 {
     PointCloudXYZ::Ptr cloud_workpiece(new PointCloudXYZ);
-    const std::string input_path = file_path + "pcl_roi_refined_workpiece.pcd";
-    if (pcl::io::loadPCDFile(input_path, *cloud_workpiece) != 0 || cloud_workpiece->points.empty()) {
-        RCLCPP_ERROR(get_logger(), "Failed to load non-empty workpiece ROI: %s", input_path.c_str());
-        return false;
+    std::string planning_mode;
+    get_parameter("planning_mode", planning_mode);
+    if (planning_mode == "premodel_concave_surface") {
+        double premodel_cone_base_diameter;
+        double premodel_cone_generatrix_angle_deg;
+        double premodel_cone_sample_spacing;
+        get_parameter("premodel_cone_base_diameter", premodel_cone_base_diameter);
+        get_parameter("premodel_cone_generatrix_angle_deg", premodel_cone_generatrix_angle_deg);
+        get_parameter("premodel_cone_sample_spacing", premodel_cone_sample_spacing);
+        cloud_workpiece = build_premodel_cone_cloud(
+            premodel_cone_base_diameter,
+            premodel_cone_generatrix_angle_deg,
+            premodel_cone_sample_spacing
+        );
+        if (cloud_workpiece->points.empty()) {
+            RCLCPP_ERROR(
+                get_logger(),
+                "Failed to build premodel cone cloud: diameter=%.5f, angle=%.5f deg, spacing=%.5f",
+                premodel_cone_base_diameter,
+                premodel_cone_generatrix_angle_deg,
+                premodel_cone_sample_spacing
+            );
+            return false;
+        }
+        const std::string model_path = file_path + "pcl_premodel_concave_workpiece.pcd";
+        pcl::io::savePCDFileASCII(model_path, *cloud_workpiece);
+        RCLCPP_INFO(
+            get_logger(),
+            "Premodel concave cone cloud built: points=%zu, diameter=%.5f m, angle=%.5f deg, output=%s",
+            cloud_workpiece->points.size(),
+            premodel_cone_base_diameter,
+            premodel_cone_generatrix_angle_deg,
+            model_path.c_str()
+        );
+    } else {
+        const std::string input_path = file_path + "pcl_roi_refined_workpiece.pcd";
+        if (pcl::io::loadPCDFile(input_path, *cloud_workpiece) != 0 || cloud_workpiece->points.empty()) {
+            RCLCPP_ERROR(get_logger(), "Failed to load non-empty workpiece ROI: %s", input_path.c_str());
+            return false;
+        }
     }
 
     Eigen::Matrix4d T_base_from_workpiece = T_base_from_workpiece_;
@@ -873,6 +959,7 @@ bool pcl_cloudslam::path_plan_concave()
     get_parameter("concave_min_total_path_points", params.min_total_path_points);
     get_parameter("concave_min_valid_points_per_layer", params.min_valid_points_per_layer);
     get_parameter("surface_clearance", params.surface_clearance);
+    params.align_x_axis_to_scan_direction = (planning_mode != "premodel_concave_surface");
 
     std::string tool_z_align;
     get_parameter("concave_tool_z_align", tool_z_align);
