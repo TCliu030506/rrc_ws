@@ -184,7 +184,7 @@ def parse_args():
         '--tcp',
         type=float,
         nargs=6,
-        default=[0.0, 0.0, 0.150, 0.0, 0.0, 0.0],
+        default=[0.0, 0.0, 0.150, 0.0, 0.0, math.radians(180)],
         metavar=('X', 'Y', 'Z', 'RX', 'RY', 'RZ'),
         help='TCP offset passed to rtde_control.setTcp, in meters/radians.',
     )

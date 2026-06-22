@@ -93,6 +93,7 @@ install(PROGRAMS
   scripts/move_test.py
   scripts/servol_trajectory_test.py
   scripts/pcd_surface_error.py
+  scripts/path_to_pcd.py
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY data/ DESTINATION share/${PROJECT_NAME}/data)

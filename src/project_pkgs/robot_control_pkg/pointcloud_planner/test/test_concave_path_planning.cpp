@@ -1,8 +1,39 @@
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <vector>
 
 #include "pointcloud_planner/concave_path_planning.h"
+
+namespace
+{
+
+double layer_roughness(
+  const std::vector<pointcloudslam_cpp::ConcaveWorkpiecePathPoint> & points)
+{
+  double roughness_sum = 0.0;
+  size_t roughness_count = 0;
+  for (size_t i = 1; i + 1 < points.size(); ++i) {
+    if (points[i - 1].is_transition || points[i].is_transition ||
+      points[i + 1].is_transition)
+    {
+      continue;
+    }
+    if (points[i - 1].layer_id != points[i].layer_id ||
+      points[i + 1].layer_id != points[i].layer_id)
+    {
+      continue;
+    }
+    roughness_sum += (
+      points[i + 1].surface_point -
+      2.0 * points[i].surface_point +
+      points[i - 1].surface_point).norm();
+    ++roughness_count;
+  }
+  return roughness_count > 0 ? roughness_sum / static_cast<double>(roughness_count) : 0.0;
+}
+
+}  // namespace
 
 int main()
 {
@@ -19,7 +50,9 @@ int main()
       pcl::PointXYZ point;
       point.x = static_cast<float>(x);
       point.y = static_cast<float>(y);
-      point.z = static_cast<float>(-0.20 * rho * rho);
+      const double deterministic_noise =
+        0.0015 * std::sin(45.0 * x) * std::cos(55.0 * y);
+      point.z = static_cast<float>(-0.20 * rho * rho + deterministic_noise);
       cloud->push_back(point);
     }
   }
@@ -38,6 +71,7 @@ int main()
   params.min_total_path_points = 20;
   params.min_valid_points_per_layer = 4;
   params.enable_transition_points = true;
+  params.enable_path_smoothing = false;
 
   pointcloudslam_cpp::ConcavePathResult result;
   const bool ok = pointcloudslam_cpp::generate_concave_path(
@@ -87,6 +121,44 @@ int main()
               << max_neighbor_angle * 180.0 / M_PI << "\n";
     return 1;
   }
+
+  pointcloudslam_cpp::ConcavePathParams smoothed_params = params;
+  smoothed_params.enable_path_smoothing = true;
+  smoothed_params.position_smoothing_window = 9;
+  smoothed_params.position_smoothing_order = 2;
+  smoothed_params.position_smoothing_passes = 2;
+  smoothed_params.position_smoothing_max_deviation = 0.002;
+  smoothed_params.normal_smoothing_window = 9;
+  smoothed_params.normal_smoothing_passes = 2;
+  smoothed_params.enable_quintic_transition = true;
+
+  pointcloudslam_cpp::ConcavePathResult smoothed_result;
+  const bool smoothed_ok = pointcloudslam_cpp::generate_concave_path(
+    cloud,
+    Eigen::Matrix4d::Identity(),
+    smoothed_params,
+    Eigen::Vector3d::Zero(),
+    Eigen::Matrix3d::Identity(),
+    &smoothed_result);
+  assert(smoothed_ok);
+  assert(smoothed_result.workpiece_points.size() == result.workpiece_points.size());
+  assert(layer_roughness(smoothed_result.workpiece_points) <
+    layer_roughness(result.workpiece_points));
+
+  bool has_transition_point = false;
+  for (size_t i = 0; i < smoothed_result.workpiece_points.size(); ++i) {
+    const auto & smoothed_point = smoothed_result.workpiece_points[i];
+    const auto & raw_point = result.workpiece_points[i];
+    if (!smoothed_point.is_transition) {
+      assert(
+        (smoothed_point.surface_point - raw_point.surface_point).norm() <=
+        smoothed_params.position_smoothing_max_deviation + 1e-9);
+    } else {
+      has_transition_point = true;
+    }
+    assert(std::abs(smoothed_point.rotation_workpiece.determinant() - 1.0) < 1e-6);
+  }
+  assert(has_transition_point);
 
   return 0;
 }

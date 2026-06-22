@@ -288,6 +288,14 @@ pcl_cloudslam::pcl_cloudslam():rclcpp::Node("pcl_cloudslam_node")
     declare_parameter<double>("concave_normal_smoothing_alpha", 0.2);
     declare_parameter<double>("concave_feed_step", 0.003);
     declare_parameter<bool>("concave_enable_transition_points", true);
+    declare_parameter<bool>("concave_enable_path_smoothing", true);
+    declare_parameter<int>("concave_position_smoothing_window", 9);
+    declare_parameter<int>("concave_position_smoothing_order", 2);
+    declare_parameter<int>("concave_position_smoothing_passes", 2);
+    declare_parameter<double>("concave_position_smoothing_max_deviation", 0.002);
+    declare_parameter<int>("concave_normal_window", 11);
+    declare_parameter<int>("concave_normal_smoothing_passes", 2);
+    declare_parameter<bool>("concave_enable_quintic_transition", true);
     declare_parameter<std::string>("concave_tool_z_align", "negative_normal");
     declare_parameter<int>("concave_min_total_path_points", 20);
     declare_parameter<int>("concave_min_valid_points_per_layer", 8);
@@ -956,6 +964,16 @@ bool pcl_cloudslam::path_plan_concave()
     get_parameter("concave_normal_smoothing_alpha", params.normal_smoothing_alpha);
     get_parameter("concave_feed_step", params.feed_step);
     get_parameter("concave_enable_transition_points", params.enable_transition_points);
+    get_parameter("concave_enable_path_smoothing", params.enable_path_smoothing);
+    get_parameter("concave_position_smoothing_window", params.position_smoothing_window);
+    get_parameter("concave_position_smoothing_order", params.position_smoothing_order);
+    get_parameter("concave_position_smoothing_passes", params.position_smoothing_passes);
+    get_parameter(
+        "concave_position_smoothing_max_deviation",
+        params.position_smoothing_max_deviation);
+    get_parameter("concave_normal_window", params.normal_smoothing_window);
+    get_parameter("concave_normal_smoothing_passes", params.normal_smoothing_passes);
+    get_parameter("concave_enable_quintic_transition", params.enable_quintic_transition);
     get_parameter("concave_min_total_path_points", params.min_total_path_points);
     get_parameter("concave_min_valid_points_per_layer", params.min_valid_points_per_layer);
     get_parameter("surface_clearance", params.surface_clearance);

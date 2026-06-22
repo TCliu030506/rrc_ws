@@ -73,6 +73,169 @@ double percentile(std::vector<double> values, double percent)
   return values[low] * (1.0 - t) + values[high] * t;
 }
 
+int normalized_odd_window(int requested_window, size_t point_count)
+{
+  if (point_count < 3) {
+    return 0;
+  }
+  int window = std::max(3, requested_window);
+  if (window % 2 == 0) {
+    ++window;
+  }
+  const int max_window = point_count % 2 == 0 ?
+    static_cast<int>(point_count) - 1 : static_cast<int>(point_count);
+  return std::min(window, max_window);
+}
+
+std::vector<double> savitzky_golay_coefficients(int window, int order)
+{
+  const int half_window = window / 2;
+  order = std::clamp(order, 0, window - 1);
+  Eigen::MatrixXd design(window, order + 1);
+  for (int row = 0; row < window; ++row) {
+    const double x = static_cast<double>(row - half_window);
+    double value = 1.0;
+    for (int column = 0; column <= order; ++column) {
+      design(row, column) = value;
+      value *= x;
+    }
+  }
+
+  Eigen::VectorXd intercept = Eigen::VectorXd::Zero(order + 1);
+  intercept(0) = 1.0;
+  const Eigen::VectorXd coefficients =
+    design * (design.transpose() * design).ldlt().solve(intercept);
+  return std::vector<double>(coefficients.data(), coefficients.data() + window);
+}
+
+void smooth_periodic_theta(
+  const std::vector<size_t> & indices,
+  const ConcavePathParams & params,
+  std::vector<ConcaveWorkpiecePathPoint> * points)
+{
+  const int window = normalized_odd_window(
+    params.position_smoothing_window, indices.size());
+  if (window == 0 || params.position_smoothing_passes <= 0) {
+    return;
+  }
+
+  const std::vector<double> coefficients = savitzky_golay_coefficients(
+    window, params.position_smoothing_order);
+  const int half_window = window / 2;
+  std::vector<double> values;
+  values.reserve(indices.size());
+  for (const size_t index : indices) {
+    values.push_back((*points)[index].theta);
+  }
+
+  for (int pass = 0; pass < params.position_smoothing_passes; ++pass) {
+    std::vector<double> smoothed(values.size(), 0.0);
+    for (size_t i = 0; i < values.size(); ++i) {
+      for (int offset = -half_window; offset <= half_window; ++offset) {
+        const int source_index = (
+          static_cast<int>(i) + offset + static_cast<int>(values.size())) %
+          static_cast<int>(values.size());
+        const size_t source = static_cast<size_t>(source_index);
+        smoothed[i] += coefficients[offset + half_window] * values[source];
+      }
+    }
+    values.swap(smoothed);
+  }
+
+  const double max_deviation = std::max(
+    0.0, params.position_smoothing_max_deviation);
+  for (size_t i = 0; i < indices.size(); ++i) {
+    ConcaveWorkpiecePathPoint & point = (*points)[indices[i]];
+    const Eigen::Vector3d original = point.surface_point;
+    Eigen::Vector3d candidate(
+      point.r * std::cos(values[i]) * std::cos(point.phi),
+      point.r * std::cos(values[i]) * std::sin(point.phi),
+      point.r * std::sin(values[i]));
+    Eigen::Vector3d correction = candidate - original;
+    if (max_deviation > 0.0 && correction.norm() > max_deviation) {
+      correction *= max_deviation / correction.norm();
+      candidate = original + correction;
+    }
+    point.surface_point = candidate;
+    point.r = candidate.norm();
+    point.theta = std::atan2(
+      candidate(2), std::hypot(candidate(0), candidate(1)));
+  }
+}
+
+void smooth_periodic_normals(
+  const std::vector<size_t> & indices,
+  const ConcavePathParams & params,
+  std::vector<ConcaveWorkpiecePathPoint> * points)
+{
+  const int window = normalized_odd_window(
+    params.normal_smoothing_window, indices.size());
+  if (window == 0 || params.normal_smoothing_passes <= 0) {
+    return;
+  }
+
+  const int half_window = window / 2;
+  std::vector<Eigen::Vector3d> normals;
+  normals.reserve(indices.size());
+  for (const size_t index : indices) {
+    normals.push_back((*points)[index].normal.normalized());
+  }
+
+  for (int pass = 0; pass < params.normal_smoothing_passes; ++pass) {
+    std::vector<Eigen::Vector3d> smoothed(normals.size(), Eigen::Vector3d::Zero());
+    for (size_t i = 0; i < normals.size(); ++i) {
+      for (int offset = -half_window; offset <= half_window; ++offset) {
+        const int wrapped = (
+          static_cast<int>(i) + offset + static_cast<int>(normals.size())) %
+          static_cast<int>(normals.size());
+        Eigen::Vector3d normal = normals[static_cast<size_t>(wrapped)];
+        if (normal.dot(normals[i]) < 0.0) {
+          normal = -normal;
+        }
+        const double weight = static_cast<double>(half_window + 1 - std::abs(offset));
+        smoothed[i] += weight * normal;
+      }
+      if (smoothed[i].norm() < 1e-8) {
+        smoothed[i] = normals[i];
+      } else {
+        smoothed[i].normalize();
+      }
+    }
+    normals.swap(smoothed);
+  }
+
+  for (size_t i = 0; i < indices.size(); ++i) {
+    (*points)[indices[i]].normal = normals[i];
+  }
+}
+
+void smooth_workpiece_path(
+  const ConcavePathParams & params,
+  std::vector<ConcaveWorkpiecePathPoint> * points)
+{
+  if (!params.enable_path_smoothing || points == nullptr || points->empty()) {
+    return;
+  }
+
+  int max_layer_id = -1;
+  for (const auto & point : *points) {
+    max_layer_id = std::max(max_layer_id, point.layer_id);
+  }
+  std::vector<std::vector<size_t>> layer_indices(
+    static_cast<size_t>(max_layer_id + 1));
+  for (size_t i = 0; i < points->size(); ++i) {
+    const auto & point = (*points)[i];
+    if (!point.is_transition && point.layer_id >= 0) {
+      layer_indices[static_cast<size_t>(point.layer_id)].push_back(i);
+    }
+  }
+
+  for (const auto & indices : layer_indices) {
+    smooth_periodic_theta(indices, params, points);
+    smooth_periodic_normals(indices, params, points);
+  }
+}
+
 Eigen::Vector3d project_to_tangent(
   const Eigen::Vector3d & vector_in,
   const Eigen::Vector3d & normal)
@@ -286,23 +449,53 @@ bool build_orientation(
   return std::abs(rotation_out->determinant() - 1.0) < 1e-3;
 }
 
+bool build_orientation_from_tangent(
+  const Eigen::Vector3d & normal,
+  Eigen::Vector3d tangent,
+  bool reverse_scan,
+  const ConcavePathParams & params,
+  Eigen::Matrix3d * rotation_out)
+{
+  if (!params.align_x_axis_to_scan_direction && reverse_scan) {
+    tangent = -tangent;
+  }
+  Eigen::Vector3d x_axis = project_to_tangent(tangent, normal);
+  if (x_axis.norm() < 1e-8) {
+    return false;
+  }
+  x_axis.normalize();
+
+  Eigen::Vector3d z_axis = params.tool_z_negative_normal ? -normal : normal;
+  if (z_axis.norm() < 1e-8) {
+    return false;
+  }
+  z_axis.normalize();
+
+  Eigen::Vector3d y_axis = z_axis.cross(x_axis);
+  if (y_axis.norm() < 1e-8) {
+    return false;
+  }
+  y_axis.normalize();
+  x_axis = y_axis.cross(z_axis).normalized();
+
+  rotation_out->col(0) = x_axis;
+  rotation_out->col(1) = y_axis;
+  rotation_out->col(2) = z_axis;
+  return std::abs(rotation_out->determinant() - 1.0) < 1e-3;
+}
+
 bool append_path_point(
   const std::vector<SphericalPoint> & spherical_points,
   const ConcavePathPointCloud::ConstPtr & cloud,
   pcl::KdTreeFLANN<pcl::PointXYZ> & tree,
-  const Eigen::Matrix4d & T_base_from_workpiece,
   const ConcavePathParams & params,
-  const Eigen::Vector3d & probe_offset,
-  const Eigen::Matrix3d & tool_mount_rotation,
   double target_r,
   double target_phi,
-  bool reverse_scan,
+  bool is_transition,
   int layer_id,
   int point_id,
   bool * has_previous_normal,
   Eigen::Vector3d * previous_normal,
-  bool * has_previous_quaternion,
-  Eigen::Quaterniond * previous_quaternion,
   ConcavePathResult * result)
 {
   result->total_candidate_points++;
@@ -337,51 +530,116 @@ bool append_path_point(
     normal_workpiece.normalize();
   }
 
-  Eigen::Matrix3d rotation_workpiece;
-  if (!build_orientation(
-      normal_workpiece, theta, target_phi, reverse_scan, params,
-      &rotation_workpiece))
-  {
-    result->skipped_orientation_points++;
-    return false;
-  }
-  rotation_workpiece = rotation_workpiece * tool_mount_rotation;
-
-  const Eigen::Matrix3d R_base_workpiece = T_base_from_workpiece.block<3, 3>(0, 0);
-  const Eigen::Vector3d origin_base = T_base_from_workpiece.block<3, 1>(0, 3);
-  const Eigen::Vector3d surface_base = R_base_workpiece * surface_workpiece + origin_base;
-  const Eigen::Vector3d normal_base = R_base_workpiece * normal_workpiece;
-  const Eigen::Matrix3d rotation_base = R_base_workpiece * rotation_workpiece;
-  const Eigen::Vector3d tcp_base =
-    surface_base + params.surface_clearance * normal_base - rotation_base * probe_offset;
-
-  Eigen::Quaterniond current_quaternion;
-  Eigen::Vector3d rotvec = rotation_to_rotvec_continuous(
-    rotation_base,
-    *has_previous_quaternion,
-    *previous_quaternion,
-    &current_quaternion);
-
-  Eigen::Matrix<double, 6, 1> pose;
-  pose << tcp_base(0), tcp_base(1), tcp_base(2), rotvec(0), rotvec(1), rotvec(2);
-  result->base_poses.push_back(pose);
-
   ConcaveWorkpiecePathPoint debug_point;
   debug_point.surface_point = surface_workpiece;
   debug_point.normal = normal_workpiece;
-  debug_point.rotation_workpiece = rotation_workpiece;
   debug_point.r = target_r;
   debug_point.theta = theta;
   debug_point.phi = target_phi;
   debug_point.layer_id = layer_id;
   debug_point.point_id = point_id;
+  debug_point.is_transition = is_transition;
   result->workpiece_points.push_back(debug_point);
 
   *previous_normal = normal_workpiece;
   *has_previous_normal = true;
-  *previous_quaternion = current_quaternion;
-  *has_previous_quaternion = true;
   result->valid_path_points++;
+  return true;
+}
+
+bool rebuild_orientations_and_base_poses(
+  const Eigen::Matrix4d & T_base_from_workpiece,
+  const ConcavePathParams & params,
+  const Eigen::Vector3d & probe_offset,
+  const Eigen::Matrix3d & tool_mount_rotation,
+  ConcavePathResult * result)
+{
+  if (result == nullptr) {
+    return false;
+  }
+
+  result->base_poses.clear();
+  result->base_poses.reserve(result->workpiece_points.size());
+  const Eigen::Matrix3d R_base_workpiece =
+    T_base_from_workpiece.block<3, 3>(0, 0);
+  const Eigen::Vector3d origin_base =
+    T_base_from_workpiece.block<3, 1>(0, 3);
+  bool has_previous_quaternion = false;
+  Eigen::Quaterniond previous_quaternion = Eigen::Quaterniond::Identity();
+  std::vector<size_t> previous_layer_point(
+    result->workpiece_points.size(), std::numeric_limits<size_t>::max());
+  std::vector<size_t> next_layer_point(
+    result->workpiece_points.size(), std::numeric_limits<size_t>::max());
+
+  int max_layer_id = -1;
+  for (const auto & point : result->workpiece_points) {
+    max_layer_id = std::max(max_layer_id, point.layer_id);
+  }
+  std::vector<std::vector<size_t>> layer_indices(
+    static_cast<size_t>(max_layer_id + 1));
+  for (size_t i = 0; i < result->workpiece_points.size(); ++i) {
+    const auto & point = result->workpiece_points[i];
+    if (!point.is_transition && point.layer_id >= 0) {
+      layer_indices[static_cast<size_t>(point.layer_id)].push_back(i);
+    }
+  }
+  for (const auto & indices : layer_indices) {
+    if (indices.size() < 3) {
+      continue;
+    }
+    for (size_t i = 0; i < indices.size(); ++i) {
+      previous_layer_point[indices[i]] =
+        indices[(i + indices.size() - 1) % indices.size()];
+      next_layer_point[indices[i]] = indices[(i + 1) % indices.size()];
+    }
+  }
+
+  for (size_t i = 0; i < result->workpiece_points.size(); ++i) {
+    auto & point = result->workpiece_points[i];
+    const bool reverse_scan = (point.layer_id % 2) == 1;
+    Eigen::Matrix3d rotation_workpiece;
+    bool orientation_ok = false;
+    if (!point.is_transition &&
+      previous_layer_point[i] != std::numeric_limits<size_t>::max())
+    {
+      const Eigen::Vector3d tangent =
+        result->workpiece_points[next_layer_point[i]].surface_point -
+        result->workpiece_points[previous_layer_point[i]].surface_point;
+      orientation_ok = build_orientation_from_tangent(
+        point.normal, tangent, reverse_scan, params, &rotation_workpiece);
+    }
+    if (!orientation_ok) {
+      orientation_ok = build_orientation(
+        point.normal, point.theta, point.phi, reverse_scan, params,
+        &rotation_workpiece);
+    }
+    if (!orientation_ok) {
+      result->skipped_orientation_points++;
+      return false;
+    }
+    rotation_workpiece *= tool_mount_rotation;
+    point.rotation_workpiece = rotation_workpiece;
+
+    const Eigen::Vector3d surface_base =
+      R_base_workpiece * point.surface_point + origin_base;
+    const Eigen::Vector3d normal_base = R_base_workpiece * point.normal;
+    const Eigen::Matrix3d rotation_base =
+      R_base_workpiece * rotation_workpiece;
+    const Eigen::Vector3d tcp_base =
+      surface_base + params.surface_clearance * normal_base -
+      rotation_base * probe_offset;
+
+    Eigen::Quaterniond current_quaternion;
+    const Eigen::Vector3d rotvec = rotation_to_rotvec_continuous(
+      rotation_base, has_previous_quaternion, previous_quaternion,
+      &current_quaternion);
+    Eigen::Matrix<double, 6, 1> pose;
+    pose << tcp_base(0), tcp_base(1), tcp_base(2),
+      rotvec(0), rotvec(1), rotvec(2);
+    result->base_poses.push_back(pose);
+    previous_quaternion = current_quaternion;
+    has_previous_quaternion = true;
+  }
   return true;
 }
 
@@ -424,9 +682,6 @@ bool generate_concave_path(
   const double delta_phi_max = deg_to_rad(params.delta_phi_max_deg);
   bool has_previous_normal = false;
   Eigen::Vector3d previous_normal = Eigen::Vector3d::UnitZ();
-  bool has_previous_quaternion = false;
-  Eigen::Quaterniond previous_quaternion = Eigen::Quaterniond::Identity();
-
   std::vector<double> layer_radii;
   for (double radius = outer_radius; radius > params.r_end; radius -= params.radial_step) {
     layer_radii.push_back(radius);
@@ -447,10 +702,10 @@ bool generate_concave_path(
       double phi = reverse_scan ? kTwoPi * (1.0 - t) : kTwoPi * t;
       phi = normalize_phi(phi);
       if (append_path_point(
-          spherical_points, cloud_workpiece, tree, T_base_from_workpiece, params,
-          probe_offset, tool_mount_rotation, radius, phi, reverse_scan,
+          spherical_points, cloud_workpiece, tree, params,
+          radius, phi, false,
           static_cast<int>(layer), global_point_id, &has_previous_normal,
-          &previous_normal, &has_previous_quaternion, &previous_quaternion, result))
+          &previous_normal, result))
       {
         ++valid_in_layer;
         ++global_point_id;
@@ -471,12 +726,16 @@ bool generate_concave_path(
           std::max(params.feed_step, 1e-6))) - 1);
       for (int step = 1; step <= transition_count; ++step) {
         const double ratio = static_cast<double>(step) / static_cast<double>(transition_count + 1);
-        const double transition_radius = radius + ratio * (next_radius - radius);
+        const double interpolation_ratio = params.enable_quintic_transition ?
+          ratio * ratio * ratio * (10.0 - 15.0 * ratio + 6.0 * ratio * ratio) :
+          ratio;
+        const double transition_radius =
+          radius + interpolation_ratio * (next_radius - radius);
         if (append_path_point(
-            spherical_points, cloud_workpiece, tree, T_base_from_workpiece, params,
-            probe_offset, tool_mount_rotation, transition_radius, phi_end, reverse_scan,
+            spherical_points, cloud_workpiece, tree, params,
+            transition_radius, phi_end, true,
             static_cast<int>(layer), global_point_id, &has_previous_normal,
-            &previous_normal, &has_previous_quaternion, &previous_quaternion, result))
+            &previous_normal, result))
         {
           ++global_point_id;
         }
@@ -484,6 +743,12 @@ bool generate_concave_path(
     }
   }
 
+  smooth_workpiece_path(params, &result->workpiece_points);
+  if (!rebuild_orientations_and_base_poses(
+      T_base_from_workpiece, params, probe_offset, tool_mount_rotation, result))
+  {
+    return false;
+  }
   return static_cast<int>(result->base_poses.size()) >= params.min_total_path_points;
 }
 

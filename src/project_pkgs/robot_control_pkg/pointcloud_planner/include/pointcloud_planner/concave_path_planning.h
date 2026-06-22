@@ -28,6 +28,14 @@ namespace pointcloudslam_cpp {
     double normal_smoothing_alpha = 0.2;
     double feed_step = 0.003;
     bool enable_transition_points = true;
+    bool enable_path_smoothing = true;
+    int position_smoothing_window = 9;
+    int position_smoothing_order = 2;
+    int position_smoothing_passes = 2;
+    double position_smoothing_max_deviation = 0.002;
+    int normal_smoothing_window = 11;
+    int normal_smoothing_passes = 2;
+    bool enable_quintic_transition = true;
     bool tool_z_negative_normal = true;
     bool align_x_axis_to_scan_direction = true;
     int min_total_path_points = 20;
@@ -45,6 +53,7 @@ namespace pointcloudslam_cpp {
     double phi = 0.0;
     int layer_id = 0;
     int point_id = 0;
+    bool is_transition = false;
   };
 
   struct ConcavePathResult
