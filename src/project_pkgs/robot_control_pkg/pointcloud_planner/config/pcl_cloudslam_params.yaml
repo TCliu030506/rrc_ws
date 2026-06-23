@@ -41,7 +41,7 @@ pcl_cloudslam_node:
     tool_tip_z: -0.00
 
     # 路径点离表面的安全抬高距离，单位 m。
-    surface_clearance: 0.006
+    surface_clearance: 0.000
 
     # 相邻路径点 z 方向最大变化限制，单位 m，用于抑制突变。
     max_dz_step: 0.003
@@ -58,15 +58,15 @@ pcl_cloudslam_node:
     # 可选：plane / cylinder_preplan / concave_surface / premodel_concave_surface
     # plane：平面 ROI 扫查；cylinder_preplan：圆柱预规划；concave_surface：凹曲面模式。
     # premodel_concave_surface：沿用凹曲面 ROI 和工件坐标系，使用预设圆锥面模型规划路径。
-    planning_mode: concave_surface
+    planning_mode: premodel_concave_surface
 
     # 探头有效长度/宽度，单位 m，用于 ROI 边界收缩，避免探头越界。
-    probe_length_m: 0.18
-    probe_width_m: 0.075
+    probe_length_m: 0.05
+    probe_width_m: 0.02
 
     # 探头边界额外安全余量，单位 m。
     # 调大：路径离 ROI 边缘更远；调小：覆盖区域更大但越界风险增加。
-    probe_boundary_margin_m: 0.04
+    probe_boundary_margin_m: 0.02
 
     # cylinder_preplan 二次视角距离，单位 m。
     cylinder_view_distance_m: 0.35
@@ -197,5 +197,5 @@ pcl_cloudslam_node:
 
     # 预设凹曲面圆锥模型：顶点在工件坐标系原点，底面朝 +Z，底面平行 XOY。
     premodel_cone_base_diameter: 0.45
-    premodel_cone_generatrix_angle_deg: 7.0
+    premodel_cone_generatrix_angle_deg: 0.0  # 0.0 是将圆锥面简化为了一个圆形平面，工件正面地实际角度为6-8度。
     premodel_cone_sample_spacing: 0.0005

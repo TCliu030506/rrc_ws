@@ -1,0 +1,8 @@
+README.md
+setup.py
+scripts/urdf2mjcf
+src/urdf2mjcf.egg-info/PKG-INFO
+src/urdf2mjcf.egg-info/SOURCES.txt
+src/urdf2mjcf.egg-info/dependency_links.txt
+src/urdf2mjcf.egg-info/requires.txt
+src/urdf2mjcf.egg-info/top_level.txt

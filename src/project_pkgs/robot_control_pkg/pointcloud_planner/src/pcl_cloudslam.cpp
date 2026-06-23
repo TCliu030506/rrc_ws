@@ -82,7 +82,7 @@ PointCloudXYZ::Ptr build_premodel_cone_cloud(
 {
     PointCloudXYZ::Ptr cloud_model(new PointCloudXYZ);
     const double radius_max = 0.5 * base_diameter;
-    if (radius_max <= 0.0 || generatrix_angle_deg <= 0.0 || sample_spacing <= 0.0) {
+    if (radius_max <= 0.0 || generatrix_angle_deg < 0.0 || sample_spacing <= 0.0) {
         return cloud_model;
     }
 

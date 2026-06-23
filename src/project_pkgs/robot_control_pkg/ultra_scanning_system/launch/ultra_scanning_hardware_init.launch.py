@@ -17,6 +17,7 @@ FORCE_SENSOR_PORT = '/dev/ttyUSB0'
 BASE_FRAME = 'base'
 TOOL_FRAME = 'tool0'
 ASM_EE_FRAME = 'asm_ee_site'
+ASM_VERSION = 3
 RAW_WRENCH_TOPIC = '/external_force_torque_wrench'
 EE_POSE_TOPIC = '/asm_ee_site/pose'
 EE_TWIST_TOPIC = '/asm_ee_site/twist'
@@ -93,6 +94,7 @@ def generate_launch_description() -> LaunchDescription:
         name='asm_tool_tf_broadcaster',
         output='screen',
         parameters=[{
+            'asm_version': ASM_VERSION,
             'parent_frame': TOOL_FRAME,
             'publish_rate': 125.0,
         }],

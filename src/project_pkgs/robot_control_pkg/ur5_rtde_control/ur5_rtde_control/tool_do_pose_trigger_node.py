@@ -1,3 +1,12 @@
+"""
+根据工具末端位姿控制 UR 工具数字输出的距离触发节点。
+
+节点订阅末端位姿，并以启用时或上一次触发时的位姿为参考。当末端沿参考
+工具 X 轴的移动距离达到设定阈值时，输出一次指定宽度的 tool DO 高电平
+脉冲，同时记录触发时间和对应位姿。触发功能通过 SetBool 服务启停，节点
+退出时会将 DO 恢复为低电平，并把全部触发记录保存到 CSV 文件。
+"""
+
 import csv
 from pathlib import Path
 from typing import Sequence, Tuple
@@ -83,6 +92,28 @@ def pose_record_to_row(timestamp_sec: float, pose: PoseTuple) -> list[float]:
         orientation[2],
         orientation[3],
     ]
+
+
+def write_pose_records_csv(
+    records_file: Path,
+    records: Sequence[tuple[float, PoseTuple]],
+) -> None:
+    """将触发时间和对应末端位姿写入 CSV 文件."""
+    records_file.parent.mkdir(parents=True, exist_ok=True)
+    with records_file.open('w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow([
+            'timestamp_sec',
+            'position_x',
+            'position_y',
+            'position_z',
+            'orientation_x',
+            'orientation_y',
+            'orientation_z',
+            'orientation_w',
+        ])
+        for timestamp_sec, pose in records:
+            writer.writerow(pose_record_to_row(timestamp_sec, pose))
 
 
 class ToolDOPoseTriggerNode(Node):
@@ -214,21 +245,7 @@ class ToolDOPoseTriggerNode(Node):
         """把触发时间戳和对应末端位姿保存为 CSV 文件."""
         if self.records_saved:
             return
-        self.records_file.parent.mkdir(parents=True, exist_ok=True)
-        with self.records_file.open('w', newline='', encoding='utf-8') as file:
-            writer = csv.writer(file)
-            writer.writerow([
-                'timestamp_sec',
-                'position_x',
-                'position_y',
-                'position_z',
-                'orientation_x',
-                'orientation_y',
-                'orientation_z',
-                'orientation_w',
-            ])
-            for timestamp_sec, pose in self.records:
-                writer.writerow(pose_record_to_row(timestamp_sec, pose))
+        write_pose_records_csv(self.records_file, self.records)
         self.records_saved = True
         self.get_logger().info(
             f'Saved {len(self.records)} tool DO trigger records '

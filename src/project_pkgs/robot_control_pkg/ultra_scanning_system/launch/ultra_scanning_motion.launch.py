@@ -14,7 +14,7 @@ from launch_ros.substitutions import FindPackageShare
 GLOBAL_LOG_LEVEL = 'WARN'
 ROBOT_IP = '192.168.1.102'
 ENABLE_ADMITTANCE = True
-TRAJECTORY_PLANNER = 'contact_scan'  # current_pose_hold, path_map, contact_scan
+TRAJECTORY_PLANNER = 'current_pose_hold'  # current_pose_hold, path_map, contact_scan
 
 # Frames
 BASE_FRAME = 'base'
@@ -52,7 +52,7 @@ CONTACT_SCAN_FORCE_AXIS = 'z'
 CONTACT_SCAN_FORCE_AXIS_SIGN = -1.0
 CONTACT_SCAN_APPROACH_AXIS_SIGN = 1.0
 CONTACT_SCAN_CONTACT_FORCE_THRESHOLD = 5.0
-CONTACT_SCAN_TARGET_CONTACT_FORCE = 25.0
+CONTACT_SCAN_TARGET_CONTACT_FORCE = 15.0
 CONTACT_SCAN_FORCE_RAMP_RATE = 0.5
 CONTACT_SCAN_ZERO_TORQUE_RX_RY_ENABLED = True
 CONTACT_SCAN_TARGET_TORQUE_RX = 0.0
@@ -105,6 +105,14 @@ def generate_launch_description():
             'launch',
             'ultra_scanning_hardware_init.launch.py',
         ),
+    )
+
+    # 周期性切换工具 DO0，用于触发超声采集。
+    periodic_tool_io_demo = Node(
+        package='ur5_rtde_control',
+        executable='periodic_tool_io_demo',
+        name='periodic_tool_io_demo',
+        output='screen',
     )
 
     # 动态重力补偿节点
@@ -295,6 +303,7 @@ def generate_launch_description():
             GLOBAL_LOG_LEVEL,
         ),
         # TimerAction(period=0.0, actions=[system_init_launch]), # 启动系统初始化的硬件相关节点
+        # TimerAction(period=2.5, actions=[periodic_tool_io_demo]), # 周期性切换工具 DO0，用于触发超声采集。
     ]
 
     if ENABLE_ADMITTANCE:

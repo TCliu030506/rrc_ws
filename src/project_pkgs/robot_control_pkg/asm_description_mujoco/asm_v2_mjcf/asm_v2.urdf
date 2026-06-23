@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="新夹具(第二版)">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0.0436659010788282 1.04083408558608E-17 0.00250000000000006"
+        rpy="0 0 0" />
+      <mass
+        value="0.086004368205565" />
+      <inertia
+        ixx="2.92028954537743E-05"
+        ixy="-4.06319388692173E-20"
+        ixz="-7.98040590536433E-21"
+        iyy="0.000136340313174352"
+        iyz="2.96461531539005E-21"
+        izz="0.000165184857093937" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="camera_link">
+    <inertial>
+      <origin
+        xyz="2.41707232313815E-06 -0.00049444581332379 0.0117777122653947"
+        rpy="0 0 0" />
+      <mass
+        value="0.0363579991795017" />
+      <inertia
+        ixx="2.11887628049285E-05"
+        ixy="7.63742337400589E-09"
+        ixz="-1.2387749277089E-08"
+        iyy="2.01033671667199E-06"
+        iyz="-4.2945241021552E-08"
+        izz="2.24422074118421E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/camera_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.654901960784314 0.933333333333333 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/camera_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="camera_joint"
+    type="fixed">
+    <origin
+      xyz="0.1 -0.0011879 0.005"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="camera_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="force_sensor_link">
+    <inertial>
+      <origin
+        xyz="-0.000349049071914536 -0.000349046591926434 6.96968716258906E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.0170701225195211" />
+      <inertia
+        ixx="1.92592459282036E-06"
+        ixy="-9.97786810840548E-08"
+        ixz="1.74591304726837E-08"
+        iyy="1.92592528843229E-06"
+        iyz="1.74590037510446E-08"
+        izz="2.88618116550286E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/force_sensor_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/force_sensor_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="force_sensor_joint"
+    type="fixed">
+    <origin
+      xyz="0 0 0.0145"
+      rpy="0 0 -3.1416" />
+    <parent
+      link="base_link" />
+    <child
+      link="force_sensor_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="linear_fixed_link">
+    <inertial>
+      <origin
+        xyz="0.000178295777954009 -0.00354351136861933 0.0287728544992723"
+        rpy="0 0 0" />
+      <mass
+        value="0.294786724180498" />
+      <inertia
+        ixx="0.000501542417042301"
+        ixy="8.5335301972957E-07"
+        ixz="-4.15749416039655E-07"
+        iyy="0.000206429530918581"
+        iyz="-2.56650983018053E-19"
+        izz="0.000490030919179466" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/linear_fixed_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/linear_fixed_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="linear_fixed_joint"
+    type="fixed">
+    <origin
+      xyz="0 0 0.0095"
+      rpy="0 0 3.1416" />
+    <parent
+      link="force_sensor_link" />
+    <child
+      link="linear_fixed_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="asm_tool_link1">
+    <inertial>
+      <origin
+        xyz="0.000503162951736984 -0.00214891278340015 -0.00246586232436954"
+        rpy="0 0 0" />
+      <mass
+        value="0.190414490710655" />
+      <inertia
+        ixx="0.000123985544804799"
+        ixy="4.12913266934443E-07"
+        ixz="-8.67650424022185E-21"
+        iyy="5.40566762518669E-05"
+        iyz="3.00696696275277E-20"
+        izz="0.00012962451821251" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/asm_tool_link1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.109803921568627 0.109803921568627 0.109803921568627 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/asm_tool_link1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="asm_tool_joint1"
+    type="prismatic">
+    <origin
+      xyz="0 0 0.10171"
+      rpy="0 0 0" />
+    <parent
+      link="linear_fixed_link" />
+    <child
+      link="asm_tool_link1" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="asm_tool_link2">
+    <inertial>
+      <origin
+        xyz="-2.10346355471475E-05 -2.70135669043457E-05 0.00514183487267464"
+        rpy="0 0 0" />
+      <mass
+        value="0.208516612105549" />
+      <inertia
+        ixx="7.40334891045725E-05"
+        ixy="2.98998173505304E-21"
+        ixz="-8.18000652834586E-14"
+        iyy="7.61592001501933E-05"
+        iyz="-1.23349431731531E-11"
+        izz="5.73979282215929E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/asm_tool_link2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/asm_tool_link2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="asm_tool_joint2"
+    type="revolute">
+    <origin
+      xyz="0 0 0.068"
+      rpy="0 -0.0070482 0" />
+    <parent
+      link="asm_tool_link1" />
+    <child
+      link="asm_tool_link2" />
+    <axis
+      xyz="0 -1 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="asm_tool_link3">
+    <inertial>
+      <origin
+        xyz="-0.000348898843608249 -0.000531783609665607 0.00884269931571253"
+        rpy="0 0 0" />
+      <mass
+        value="0.102220510436126" />
+      <inertia
+        ixx="6.65596700213336E-05"
+        ixy="4.11970043595807E-12"
+        ixz="-6.36929626335054E-12"
+        iyy="1.91399123340046E-05"
+        iyz="-3.36691120431602E-07"
+        izz="7.90975857774467E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/asm_tool_link3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/asm_tool_link3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="asm_tool_joint3"
+    type="revolute">
+    <origin
+      xyz="0.00034889 0 0.0495"
+      rpy="-0.039683 0 0" />
+    <parent
+      link="asm_tool_link2" />
+    <child
+      link="asm_tool_link3" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="asm_waterproof_link">
+    <inertial>
+      <origin
+        xyz="-0.000237791902297134 0.000501086248229209 0"
+        rpy="0 0 0" />
+      <mass
+        value="0.00458794842857538" />
+      <inertia
+        ixx="1.84056348863874E-06"
+        ixy="9.45953383354993E-09"
+        ixz="-1.53141775110391E-22"
+        iyy="9.86533715145774E-07"
+        iyz="3.54522981503028E-22"
+        izz="2.80645143585593E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/asm_waterproof_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.498039215686275 0.498039215686275 0.498039215686275 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://新夹具(第二版)/meshes/asm_waterproof_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="asm_waterproof_joint"
+    type="fixed">
+    <origin
+      xyz="-0.00034889 -0.0013839 0.028"
+      rpy="0 0 0" />
+    <parent
+      link="asm_tool_link3" />
+    <child
+      link="asm_waterproof_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+</robot>

@@ -33,6 +33,8 @@ setup(
             'teleoperation_control_ui_executor = ur5_rtde_control.teleoperation_control_ui_executor:main',
             'my_demo = ur5_rtde_control.my_demo:main',
             'io_demo = ur5_rtde_control.io_demo:main',
+            'periodic_tool_io_demo = ur5_rtde_control.periodic_tool_io_demo:main',
+            'frequency_tool_do_trigger_node = ur5_rtde_control.frequency_tool_do_trigger_node:main',
             'omni_pub_test_node = ur5_rtde_control.omni_pub_test_node:main',
             'rtde_velocity_publisher_node = ur5_rtde_control.rtde_velocity_publisher_node:main',
             'rtde_servol_pose_controller_node = ur5_rtde_control.rtde_servol_pose_controller_node:main',
