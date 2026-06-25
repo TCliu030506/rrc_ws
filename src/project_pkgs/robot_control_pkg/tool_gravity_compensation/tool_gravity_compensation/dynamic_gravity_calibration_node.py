@@ -11,10 +11,91 @@ from rclpy.node import Node
 from std_srvs.srv import Trigger
 from tf2_ros import Buffer, TransformException, TransformListener
 
+from tool_gravity_compensation.constrained_dynamic_gravity_model import (
+    solve_constrained_dynamic_gravity_params,
+)
 from tool_gravity_compensation.dynamic_gravity_model import (
     solve_dynamic_gravity_params,
 )
 from tool_gravity_compensation.gravity_model import quat_to_rot
+
+
+_CONSTRAINED_V2_LINK_FRAMES = [
+    'asm_tool_base_link',
+    'asm_tool_link1',
+    'asm_tool_link2',
+    'asm_tool_link3',
+]
+
+
+def _validate_constrained_v2_options(options):
+    positive_scalars = (
+        'known_base_mass',
+        'known_moving_total_mass',
+        'com_xy_prior_std_m',
+        'moving_mass_prior_std_kg',
+        'first_moment_min_norm_std_kg_m',
+        'min_link_mass_kg',
+        'max_abs_com_m',
+    )
+    for name in positive_scalars:
+        value = float(options[name])
+        if not np.isfinite(value) or value <= 0.0:
+            raise ValueError(f'{name} must be finite and > 0')
+
+    for name in ('fixed_force_bias', 'fixed_torque_bias', 'moving_mass_prior'):
+        values = np.asarray(options[name], dtype=float)
+        if values.shape != (3,) or not np.all(np.isfinite(values)):
+            raise ValueError(f'{name} must contain 3 finite values')
+
+    moving_mass_prior = np.asarray(options['moving_mass_prior'], dtype=float)
+    if np.any(moving_mass_prior <= 0.0):
+        raise ValueError('moving_mass_prior values must be > 0')
+    moving_total_mass = float(options['known_moving_total_mass'])
+    if abs(float(np.sum(moving_mass_prior)) - moving_total_mass) > 1e-9:
+        raise ValueError(
+            'moving_mass_prior sum must equal known_moving_total_mass within 1e-9'
+        )
+
+    min_link_mass = float(options['min_link_mass_kg'])
+    if float(options['known_base_mass']) < min_link_mass:
+        raise ValueError('known_base_mass must be >= min_link_mass_kg')
+    if moving_total_mass < 3.0 * min_link_mass:
+        raise ValueError(
+            'known_moving_total_mass cannot satisfy min_link_mass_kg'
+        )
+
+
+def solve_calibration_samples(samples, link_frames, solver_mode, options):
+    if solver_mode == 'unconstrained':
+        return solve_dynamic_gravity_params(
+            samples,
+            link_count=len(link_frames),
+        )
+
+    if solver_mode == 'constrained_v2':
+        if list(link_frames) != _CONSTRAINED_V2_LINK_FRAMES:
+            raise ValueError(
+                'constrained_v2 requires link_frames in order: '
+                + ', '.join(_CONSTRAINED_V2_LINK_FRAMES)
+            )
+        _validate_constrained_v2_options(options)
+        return solve_constrained_dynamic_gravity_params(
+            samples=samples,
+            base_mass=options['known_base_mass'],
+            moving_total_mass=options['known_moving_total_mass'],
+            force_bias=options['fixed_force_bias'],
+            torque_bias=options['fixed_torque_bias'],
+            com_xy_prior_std_m=options['com_xy_prior_std_m'],
+            moving_mass_prior=options['moving_mass_prior'],
+            moving_mass_prior_std_kg=options['moving_mass_prior_std_kg'],
+            first_moment_min_norm_std_kg_m=(
+                options['first_moment_min_norm_std_kg_m']
+            ),
+            min_link_mass_kg=options['min_link_mass_kg'],
+        )
+
+    raise ValueError(f'Unknown solver_mode: {solver_mode}')
 
 
 class DynamicGravityCalibrationNode(Node):
@@ -39,6 +120,17 @@ class DynamicGravityCalibrationNode(Node):
             'output_file',
             '/home/liutiancheng/Lab_WS/rrc_ws/src/project_pkgs/robot_control_pkg/tool_gravity_compensation/config/tool_gravity_calibration_dynamic.json',
         )
+        self.declare_parameter('solver_mode', 'unconstrained')
+        self.declare_parameter('known_base_mass', 0.8)
+        self.declare_parameter('known_moving_total_mass', 1.2)
+        self.declare_parameter('fixed_force_bias', [0.0, 0.0, 0.0])
+        self.declare_parameter('fixed_torque_bias', [0.0, 0.0, 0.0])
+        self.declare_parameter('com_xy_prior_std_m', 0.03)
+        self.declare_parameter('moving_mass_prior', [0.3, 0.4, 0.5])
+        self.declare_parameter('moving_mass_prior_std_kg', 0.2)
+        self.declare_parameter('first_moment_min_norm_std_kg_m', 1.0e6)
+        self.declare_parameter('min_link_mass_kg', 0.05)
+        self.declare_parameter('max_abs_com_m', 0.25)
 
         self.wrench_topic = str(self.get_parameter('wrench_topic').value)
         self.world_frame = str(self.get_parameter('world_frame').value)
@@ -51,11 +143,54 @@ class DynamicGravityCalibrationNode(Node):
             str(value) for value in self.get_parameter('tool_joint_names').value
         ]
         self.output_file = os.path.expanduser(str(self.get_parameter('output_file').value))
+        self.solver_mode = str(self.get_parameter('solver_mode').value)
+        self.solver_options = {
+            'known_base_mass': float(
+                self.get_parameter('known_base_mass').value
+            ),
+            'known_moving_total_mass': float(
+                self.get_parameter('known_moving_total_mass').value
+            ),
+            'fixed_force_bias': [
+                float(value)
+                for value in self.get_parameter('fixed_force_bias').value
+            ],
+            'fixed_torque_bias': [
+                float(value)
+                for value in self.get_parameter('fixed_torque_bias').value
+            ],
+            'com_xy_prior_std_m': float(
+                self.get_parameter('com_xy_prior_std_m').value
+            ),
+            'moving_mass_prior': [
+                float(value)
+                for value in self.get_parameter('moving_mass_prior').value
+            ],
+            'moving_mass_prior_std_kg': float(
+                self.get_parameter('moving_mass_prior_std_kg').value
+            ),
+            'first_moment_min_norm_std_kg_m': float(
+                self.get_parameter('first_moment_min_norm_std_kg_m').value
+            ),
+            'min_link_mass_kg': float(
+                self.get_parameter('min_link_mass_kg').value
+            ),
+            'max_abs_com_m': float(
+                self.get_parameter('max_abs_com_m').value
+            ),
+        }
 
         if self.sample_period_sec <= 0.0:
             raise ValueError('sample_period_sec must be > 0')
         if not self.link_frames:
             raise ValueError('link_frames must not be empty')
+        if self.solver_mode == 'constrained_v2':
+            if self.link_frames != _CONSTRAINED_V2_LINK_FRAMES:
+                raise ValueError(
+                    'constrained_v2 requires link_frames in order: '
+                    + ', '.join(_CONSTRAINED_V2_LINK_FRAMES)
+                )
+            _validate_constrained_v2_options(self.solver_options)
 
         self.samples = []
         self.latest_wrench = None
@@ -75,7 +210,7 @@ class DynamicGravityCalibrationNode(Node):
             'Dynamic gravity calibration node ready. '
             f'wrench={self.wrench_topic}, world={self.world_frame}, '
             f'sensor={self.sensor_frame}, links={self.link_frames}, '
-            f'out={self.output_file}'
+            f'solver={self.solver_mode}, out={self.output_file}'
         )
 
     def _wrench_cb(self, msg: WrenchStamped) -> None:
@@ -206,18 +341,42 @@ class DynamicGravityCalibrationNode(Node):
             return response
 
         try:
-            result = solve_dynamic_gravity_params(
+            result = solve_calibration_samples(
                 self.samples,
-                link_count=len(self.link_frames),
+                self.link_frames,
+                self.solver_mode,
+                self.solver_options,
             )
         except Exception as exc:  # noqa: BLE001
             response.success = False
-            response.message = f'Dynamic least-squares solve failed: {exc}'
+            response.message = f'Dynamic calibration solve failed: {exc}'
             self.get_logger().error(response.message)
             return response
 
         masses = np.asarray(result['link_masses'], dtype=float)
         coms = np.asarray(result['link_coms'], dtype=float)
+        if self.solver_mode == 'constrained_v2':
+            max_abs_com = float(self.solver_options['max_abs_com_m'])
+            if (
+                not np.all(np.isfinite(coms))
+                or float(np.max(np.abs(coms))) > max_abs_com
+            ):
+                response.success = False
+                response.message = (
+                    'Constrained v2 solve rejected: '
+                    f'link COM exceeds max_abs_com_m={max_abs_com}'
+                )
+                self.get_logger().error(response.message)
+                return response
+            if float(result['mass_constraint_error']) > 1e-9:
+                response.success = False
+                response.message = (
+                    'Constrained v2 solve rejected: '
+                    'mass_constraint_error exceeds 1e-9'
+                )
+                self.get_logger().error(response.message)
+                return response
+
         non_positive = [index for index, mass in enumerate(masses) if mass <= 0.0]
         if non_positive:
             self.get_logger().warn(
@@ -243,6 +402,35 @@ class DynamicGravityCalibrationNode(Node):
             'torque_bias': [float(value) for value in result['torque_bias']],
             'tool_joint_names': list(self.tool_joint_names),
         }
+        if self.solver_mode == 'constrained_v2':
+            data.update({
+                'asm_version': 2,
+                'solver_mode': self.solver_mode,
+                'known_base_mass': float(
+                    self.solver_options['known_base_mass']
+                ),
+                'known_moving_total_mass': float(
+                    self.solver_options['known_moving_total_mass']
+                ),
+                'com_xy_prior_std_m': float(
+                    self.solver_options['com_xy_prior_std_m']
+                ),
+                'moving_mass_prior': [
+                    float(value)
+                    for value in self.solver_options['moving_mass_prior']
+                ],
+                'data_rank': int(result['data_rank']),
+                'reduced_data_rank': int(result['reduced_data_rank']),
+                'augmented_rank': int(result['augmented_rank']),
+                'mass_constraint_error': float(
+                    result['mass_constraint_error']
+                ),
+                'condition_number': float(result['condition_number']),
+                'parameter_interpretation': (
+                    'regularized_equivalent_parameters'
+                ),
+            })
+            data['rank'] = int(result['augmented_rank'])
 
         try:
             out_dir = os.path.dirname(self.output_file)
