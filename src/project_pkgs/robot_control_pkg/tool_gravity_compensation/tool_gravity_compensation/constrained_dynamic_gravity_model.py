@@ -241,6 +241,7 @@ def solve_constrained_dynamic_gravity_params(
         "data_rank": int(np.linalg.matrix_rank(system)),
         "reduced_data_rank": int(np.linalg.matrix_rank(reduced_data)),
         "augmented_rank": int(augmented_rank),
+        "rank": int(augmented_rank),
         "rms_residual": rms_residual,
         "mass_constraint_error": mass_constraint_error,
         "condition_number": condition_number,

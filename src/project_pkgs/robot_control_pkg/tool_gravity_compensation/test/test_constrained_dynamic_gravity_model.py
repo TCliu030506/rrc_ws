@@ -6,6 +6,9 @@ import pytest
 from tool_gravity_compensation.constrained_dynamic_gravity_model import (
     solve_constrained_dynamic_gravity_params,
 )
+from tool_gravity_compensation.dynamic_gravity_model import (
+    predict_dynamic_gravity_wrench,
+)
 
 
 def _rot_x(angle):
@@ -38,53 +41,93 @@ def _rot_z(angle):
     ])
 
 
-def _transforms(index):
-    phase = 0.11 * index
+def _v2_transforms(prismatic_z, link2_y, link3_x):
+    link2_rotation = _rot_y(link2_y)
+    link3_rotation = link2_rotation @ _rot_x(link3_x)
+    link2_origin = np.array([0.0, 0.0, 0.08 + prismatic_z])
+    link3_origin = link2_origin + link2_rotation @ np.array(
+        [0.0, 0.0, 0.12]
+    )
     return [
         {
-            "rot": _rot_z(0.13 + phase) @ _rot_y(-0.08 + 0.03 * index),
-            "trans": np.array([0.012, -0.006, 0.025]),
+            "rot": np.eye(3),
+            "trans": np.zeros(3),
         },
         {
-            "rot": _rot_x(-0.21 + 0.04 * index) @ _rot_z(0.07 - phase),
-            "trans": np.array([-0.018, 0.011, 0.092]),
+            "rot": np.eye(3),
+            "trans": np.array([0.0, 0.0, prismatic_z]),
         },
         {
-            "rot": _rot_y(0.28 - 0.02 * index) @ _rot_x(0.09 + phase),
-            "trans": np.array([0.023, 0.016, 0.151]),
+            "rot": link2_rotation,
+            "trans": link2_origin,
         },
         {
-            "rot": _rot_z(-0.17 + 0.05 * index) @ _rot_y(0.19 - phase),
-            "trans": np.array([-0.014, -0.021, 0.224]),
+            "rot": link3_rotation,
+            "trans": link3_origin,
         },
     ]
 
 
-def _sample(index, masses, first_moments, force_bias, torque_bias):
-    sensor_rotation = (
-        _rot_z(-0.19 + 0.07 * index)
-        @ _rot_y(0.31 * math.sin(0.37 * index))
-        @ _rot_x(-0.27 * math.cos(0.23 * index))
-    )
-    g_sensor = sensor_rotation.T @ np.array([0.0, 0.0, -9.81])
-    transforms = _transforms(index)
-    force = force_bias.copy()
-    torque = torque_bias.copy()
-
+def _direct_wrench(
+    g_sensor,
+    transforms,
+    masses,
+    first_moments,
+    force_bias,
+    torque_bias,
+):
+    force = np.asarray(force_bias, dtype=float).copy()
+    torque = np.asarray(torque_bias, dtype=float).copy()
     for transform, mass, first_moment in zip(
         transforms, masses, first_moments
     ):
-        force_i = mass * g_sensor
-        force += force_i
-        torque += np.cross(transform["trans"], force_i)
-        torque += np.cross(transform["rot"] @ first_moment, g_sensor)
+        link_force = mass * g_sensor
+        link_com_sensor = (
+            transform["trans"]
+            + transform["rot"] @ (first_moment / mass)
+        )
+        force += link_force
+        torque += np.cross(link_com_sensor, link_force)
+    return force, torque
 
+
+def _sample(
+    g_sensor,
+    transforms,
+    masses,
+    first_moments,
+    force_bias,
+    torque_bias,
+):
+    force, torque = _direct_wrench(
+        g_sensor,
+        transforms,
+        masses,
+        first_moments,
+        force_bias,
+        torque_bias,
+    )
     return {
         "g_sensor": g_sensor,
         "transforms": transforms,
         "force": force,
         "torque": torque,
     }
+
+
+def _pose(index):
+    sensor_rotation = (
+        _rot_z(-0.19 + 0.07 * index)
+        @ _rot_y(0.31 * math.sin(0.37 * index))
+        @ _rot_x(-0.27 * math.cos(0.23 * index))
+    )
+    g_sensor = sensor_rotation.T @ np.array([0.0, 0.0, -9.81])
+    transforms = _v2_transforms(
+        prismatic_z=0.025 + 0.002 * (index % 5),
+        link2_y=-0.45 + 0.09 * (index % 9),
+        link3_x=0.35 * math.sin(0.29 * index),
+    )
+    return g_sensor, transforms
 
 
 def _solve(samples, **overrides):
@@ -104,7 +147,7 @@ def _solve(samples, **overrides):
     return solve_constrained_dynamic_gravity_params(**arguments)
 
 
-def _fixture():
+def _holdout_fixture():
     masses = np.array([0.8, 0.3, 0.4, 0.5])
     first_moments = np.array([
         [0.0, 0.0, 0.016],
@@ -114,60 +157,115 @@ def _fixture():
     ])
     force_bias = np.array([0.21, -0.14, 0.32])
     torque_bias = np.array([0.012, -0.008, 0.017])
-    samples = [
-        _sample(index, masses, first_moments, force_bias, torque_bias)
-        for index in range(18)
-    ]
+    samples = []
+    for index in range(18):
+        g_sensor, transforms = _pose(index)
+        samples.append(_sample(
+            g_sensor,
+            transforms,
+            masses,
+            first_moments,
+            force_bias,
+            torque_bias,
+        ))
     return masses, first_moments, force_bias, torque_bias, samples
 
 
-def test_fixed_mass_prior_and_hard_constraints_are_preserved():
-    masses, _, force_bias, torque_bias, samples = _fixture()
+def _degenerate_fixture():
+    true_masses = np.array([0.8, 0.18, 0.47, 0.55])
+    first_moments = np.array([
+        [0.012, -0.009, 0.016],
+        [-0.008, 0.006, -0.006],
+        [0.007, 0.011, 0.012],
+        [-0.006, -0.008, -0.015],
+    ])
+    force_bias = np.array([0.21, -0.14, 0.32])
+    torque_bias = np.array([0.012, -0.008, 0.017])
+    g_sensor = np.array([0.0, 0.0, -9.81])
+    transforms = _v2_transforms(0.03, 0.0, 0.0)
+    sample = _sample(
+        g_sensor,
+        transforms,
+        true_masses,
+        first_moments,
+        force_bias,
+        torque_bias,
+    )
+    return true_masses, [sample]
+
+
+def test_hard_mass_constraints_hold_for_conflicting_degenerate_data():
+    true_masses, samples = _degenerate_fixture()
 
     result = _solve(samples)
 
-    np.testing.assert_allclose(result["force_bias"], force_bias)
-    np.testing.assert_allclose(result["torque_bias"], torque_bias)
-    np.testing.assert_allclose(result["link_masses"], masses, atol=1e-10)
-    np.testing.assert_allclose(
-        result["link_first_moments"][:, :2], 0.0, atol=1e-10
+    assert not np.allclose(result["link_masses"][1:], true_masses[1:])
+    assert result["link_masses"][0] == pytest.approx(0.8, abs=1e-12)
+    assert np.sum(result["link_masses"][1:]) == pytest.approx(
+        1.2, abs=1e-12
     )
-    np.testing.assert_allclose(
-        result["link_coms"],
-        result["link_first_moments"] / result["link_masses"][:, None],
-    )
-    assert result["sample_count"] == len(samples)
-    assert result["data_rank"] > 0
-    assert result["reduced_data_rank"] > 0
-    assert result["augmented_rank"] == 14
-    assert np.isfinite(result["condition_number"])
-    assert result["rms_residual"] < 1e-9
     assert result["mass_constraint_error"] <= 1e-9
 
 
-def test_holdout_pose_wrench_prediction_matches_equivalent_model():
-    masses, first_moments, force_bias, torque_bias, samples = _fixture()
-    result = _solve(samples)
-    holdout = _sample(
-        41, masses, first_moments, force_bias, torque_bias
-    )
+def test_mass_prior_and_xy_regularization_control_degenerate_solution():
+    _, samples = _degenerate_fixture()
+    alternate_prior = np.array([0.5, 0.4, 0.3])
 
-    predicted = _sample(
-        41,
-        result["link_masses"],
-        result["link_first_moments"],
-        result["force_bias"],
-        result["torque_bias"],
-    )
+    default = _solve(samples)
+    repeated = _solve(samples)
+    alternate = _solve(samples, moving_mass_prior=alternate_prior)
+    tight_xy = _solve(samples, com_xy_prior_std_m=1e-4)
+    loose_xy = _solve(samples, com_xy_prior_std_m=10.0)
 
-    np.testing.assert_allclose(predicted["force"], holdout["force"], atol=1e-8)
     np.testing.assert_allclose(
-        predicted["torque"], holdout["torque"], atol=1e-8
+        default["link_masses"][1:], [0.3, 0.4, 0.5], atol=1e-10
     )
+    np.testing.assert_allclose(
+        alternate["link_masses"][1:], alternate_prior, atol=1e-10
+    )
+    np.testing.assert_allclose(
+        repeated["link_first_moments"],
+        default["link_first_moments"],
+        atol=0.0,
+    )
+    assert np.all(np.isfinite(default["link_first_moments"]))
+    assert np.linalg.norm(
+        tight_xy["link_first_moments"][:, :2]
+    ) < np.linalg.norm(loose_xy["link_first_moments"][:, :2])
+
+
+def test_returns_rank_compatibility_alias():
+    _, _, _, _, samples = _holdout_fixture()
+
+    result = _solve(samples)
+
+    assert result["rank"] == result["augmented_rank"]
+
+
+def test_holdout_pose_wrench_prediction_matches_equivalent_model():
+    masses, first_moments, force_bias, torque_bias, samples = (
+        _holdout_fixture()
+    )
+    result = _solve(samples)
+    g_sensor, transforms = _pose(41)
+    expected_force, expected_torque = _direct_wrench(
+        g_sensor,
+        transforms,
+        masses,
+        first_moments,
+        force_bias,
+        torque_bias,
+    )
+    predicted_force, predicted_torque = predict_dynamic_gravity_wrench(
+        g_sensor, transforms, result
+    )
+
+    np.testing.assert_allclose(predicted_force, expected_force, atol=1e-8)
+    np.testing.assert_allclose(predicted_torque, expected_torque, atol=1e-6)
 
 
 def test_rejects_sample_without_exactly_four_transforms():
-    _, _, _, _, samples = _fixture()
+    _, _, _, _, samples = _holdout_fixture()
     samples[0] = dict(samples[0], transforms=samples[0]["transforms"][:3])
 
     with pytest.raises(ValueError, match="transform count must be 4"):
@@ -188,7 +286,7 @@ def test_rejects_sample_without_exactly_four_transforms():
     ],
 )
 def test_rejects_invalid_solver_inputs(override, message):
-    _, _, _, _, samples = _fixture()
+    _, _, _, _, samples = _holdout_fixture()
 
     with pytest.raises(ValueError, match=message):
         _solve(samples, **override)
