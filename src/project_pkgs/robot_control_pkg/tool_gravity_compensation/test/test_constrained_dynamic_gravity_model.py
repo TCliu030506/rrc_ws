@@ -298,6 +298,59 @@ def test_holdout_pose_wrench_prediction_matches_equivalent_model():
     np.testing.assert_allclose(predicted_torque, expected_torque, atol=1e-6)
 
 
+@pytest.mark.parametrize("active_bias", ["force", "torque"])
+def test_fixed_bias_is_removed_from_physical_fit_and_restored_in_prediction(
+    active_bias,
+):
+    masses = np.array([0.8, 0.3, 0.4, 0.5])
+    first_moments = np.array([
+        [0.0, 0.0, 0.016],
+        [0.0, 0.0, -0.006],
+        [0.0, 0.0, 0.012],
+        [0.0, 0.0, -0.015],
+    ])
+    force_bias = np.zeros(3)
+    torque_bias = np.zeros(3)
+    if active_bias == "force":
+        force_bias = np.array([1.7, -2.1, 0.9])
+    else:
+        torque_bias = np.array([0.4, -0.3, 0.2])
+
+    samples = []
+    for index in range(18):
+        g_sensor, transforms = _pose(index)
+        samples.append(_sample(
+            g_sensor,
+            transforms,
+            masses,
+            first_moments,
+            force_bias,
+            torque_bias,
+        ))
+
+    result = _solve(
+        samples,
+        force_bias=force_bias,
+        torque_bias=torque_bias,
+    )
+    holdout_g, holdout_transforms = _pose(41)
+    expected_force, expected_torque = _direct_wrench(
+        holdout_g,
+        holdout_transforms,
+        masses,
+        first_moments,
+        force_bias,
+        torque_bias,
+    )
+    predicted_force, predicted_torque = predict_dynamic_gravity_wrench(
+        holdout_g, holdout_transforms, result
+    )
+
+    assert result["rms_residual"] < 1e-9
+    np.testing.assert_allclose(predicted_force, expected_force, atol=1e-8)
+    np.testing.assert_allclose(predicted_torque, expected_torque, atol=1e-6)
+
+
 def test_rejects_sample_without_exactly_four_transforms():
     _, _, _, _, samples = _holdout_fixture()
     samples[0] = dict(samples[0], transforms=samples[0]["transforms"][:3])
