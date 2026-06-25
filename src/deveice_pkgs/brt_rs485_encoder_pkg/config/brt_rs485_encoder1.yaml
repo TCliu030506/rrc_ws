@@ -9,6 +9,7 @@ brt_rs485_encoder_node:
     scan_timeout: 0.5
     scan_interval_sec: 5.0
     resolution: 4096
+    encoder_type: rotary
     sample_time_ms: 100
     position_sign: 1.0
     angle_offset_rad: -3.14159265

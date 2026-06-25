@@ -151,6 +151,7 @@ class BrtRs485EncoderNode(Node):
         # 轮询频率与编码器量纲换算参数。
         self.declare_parameter("publish_rate_hz", 20.0)
         self.declare_parameter("resolution", 65536)
+        self.declare_parameter("encoder_type", "rotary")
         self.declare_parameter("sample_time_ms", 100)
 
         # 安装方向、零点和角度偏置修正。
@@ -190,6 +191,7 @@ class BrtRs485EncoderNode(Node):
         self.address = int(self.get_parameter("address").value)
         self.timeout = float(self.get_parameter("timeout").value)
         self.resolution = int(self.get_parameter("resolution").value)
+        self.encoder_type = str(self.get_parameter("encoder_type").value)
 
         # 自动扫描状态。port 为空时会扫描；若固定 port 通信失败，也会清空 port 后重新扫描。
         self._last_scan_time = 0.0
@@ -491,6 +493,8 @@ class BrtRs485EncoderNode(Node):
                 raise ValueError("port_lock_dir must not be empty")
         if self.reconnect_interval_sec < 0.0:
             raise ValueError("reconnect_interval_sec must be >= 0")
+        if self.encoder_type not in {"rotary", "linear"}:
+            raise ValueError("encoder_type must be one of: rotary, linear")
         # auto_scan 模式下允许 port 为空，会在运行时动态扫描
         if not self.dry_run and not self.port and not self.auto_scan:
             raise ValueError("port must be set unless dry_run is true or auto_scan is enabled")
@@ -733,6 +737,16 @@ class BrtRs485EncoderNode(Node):
             raw_value = int(raw_value)
 
         if kind in POSITION_KINDS and "angle_deg" in result:
+            if self.encoder_type == "linear":
+                return EncoderSample(
+                    kind=kind,
+                    raw_value=raw_value,
+                    position_rad=(
+                        raw_value * 0.06 / self.resolution
+                        + self.angle_offset_rad
+                    ),
+                )
+
             # 底层先按 resolution 算出角度，这里统一转成 ROS 常用的 rad。
             position_rad = math.radians(float(result["angle_deg"]))
             zero_offset_rad = (
