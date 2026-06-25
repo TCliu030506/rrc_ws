@@ -172,7 +172,7 @@ def _holdout_fixture():
 
 
 def _degenerate_fixture():
-    true_masses = np.array([0.8, 0.18, 0.47, 0.55])
+    true_masses = np.array([1.05, 0.22, 0.48, 0.65])
     first_moments = np.array([
         [0.012, -0.009, 0.016],
         [-0.008, 0.006, -0.006],
@@ -199,11 +199,13 @@ def test_hard_mass_constraints_hold_for_conflicting_degenerate_data():
 
     result = _solve(samples)
 
-    assert not np.allclose(result["link_masses"][1:], true_masses[1:])
+    assert true_masses[0] != pytest.approx(0.8)
+    assert np.sum(true_masses[1:]) != pytest.approx(1.2)
     assert result["link_masses"][0] == pytest.approx(0.8, abs=1e-12)
     assert np.sum(result["link_masses"][1:]) == pytest.approx(
         1.2, abs=1e-12
     )
+    assert result["rms_residual"] > 0.1
     assert result["mass_constraint_error"] <= 1e-9
 
 
@@ -232,6 +234,38 @@ def test_mass_prior_and_xy_regularization_control_degenerate_solution():
     assert np.linalg.norm(
         tight_xy["link_first_moments"][:, :2]
     ) < np.linalg.norm(loose_xy["link_first_moments"][:, :2])
+
+
+def test_first_moment_min_norm_regularization_shrinks_z_moments():
+    masses = np.array([0.8, 0.3, 0.4, 0.5])
+    first_moments = np.array([
+        [0.0, 0.0, 0.01],
+        [0.0, 0.0, 0.01],
+        [0.0, 0.0, 0.01],
+        [0.0, 0.0, 0.01],
+    ])
+    g_sensor = np.array([1e-6, 0.0, 0.0])
+    transforms = _v2_transforms(0.0, 0.0, 0.0)
+    sample = _sample(
+        g_sensor,
+        transforms,
+        masses,
+        first_moments,
+        np.array([0.21, -0.14, 0.32]),
+        np.array([0.012, -0.008, 0.017]),
+    )
+
+    weak = _solve(
+        [sample], first_moment_min_norm_std_kg_m=1e6
+    )
+    strong = _solve(
+        [sample], first_moment_min_norm_std_kg_m=1.0
+    )
+
+    weak_z_norm = np.linalg.norm(weak["link_first_moments"][:, 2])
+    strong_z_norm = np.linalg.norm(strong["link_first_moments"][:, 2])
+    assert np.isfinite(weak_z_norm)
+    assert weak_z_norm > 1e3 * strong_z_norm
 
 
 def test_returns_rank_compatibility_alias():
