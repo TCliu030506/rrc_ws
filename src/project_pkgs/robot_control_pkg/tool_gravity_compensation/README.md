@@ -227,3 +227,36 @@ ros2 topic echo /external_force_torque_wrench_compensated
 
 - `config/gravity_calibration_params.yaml`
 - `config/gravity_compensation_params.yaml`
+
+## ASM v2 动态重力标定
+
+标定前确认传感器到四个刚体帧的 TF 均可用：
+
+```bash
+ros2 run tf2_ros tf2_echo asm_force_sensor_link asm_tool_base_link
+ros2 run tf2_ros tf2_echo asm_force_sensor_link asm_tool_link1
+ros2 run tf2_ros tf2_echo asm_force_sensor_link asm_tool_link2
+ros2 run tf2_ros tf2_echo asm_force_sensor_link asm_tool_link3
+```
+
+启动 v2 标定，清空样本，逐姿态采集并求解：
+
+```bash
+ros2 launch tool_gravity_compensation gravity_calibration_dynamic_v2.launch.py
+ros2 service call /dynamic_gravity_calibration_node/clear_samples std_srvs/srv/Trigger {}
+ros2 service call /dynamic_gravity_calibration_node/collect_current_pose std_srvs/srv/Trigger {}
+ros2 service call /dynamic_gravity_calibration_node/solve_and_save std_srvs/srv/Trigger {}
+```
+
+建议使用 30--50 个覆盖 UR 和三个 ASM 关节工作区的静止姿态进行标定，另留
+10 个未参与求解的姿态验收。`constrained_v2` 识别的是在当前四帧运动学模型下
+产生相同重力 wrench 的等效质量和质心参数，不要求逐项等于 CAD 刚体参数。
+
+启动 v2 补偿：
+
+```bash
+ros2 launch tool_gravity_compensation gravity_compensation_dynamic_v2.launch.py
+```
+
+建议在 10 个留出姿态下验收静止无接触残差：力不超过 `0.5 N`，力矩不超过
+`0.03 Nm`。
