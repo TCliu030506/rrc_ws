@@ -1,0 +1,28 @@
+dynamic_gravity_calibration_node:
+  ros__parameters:
+    wrench_topic: /external_force_torque_wrench
+    world_frame: base
+    sensor_frame: asm_force_sensor_link
+    gravity_norm: 9.81
+    sample_period_sec: 0.05
+    samples_per_capture: 30
+    link_frames:
+      - asm_tool_base_link
+      - asm_tool_link1
+      - asm_tool_link2
+    tool_joint_names:
+      - brt_encoder1_joint
+      - brt_encoder2_joint
+      - brt_encoder3_joint
+    output_file: /home/liutiancheng/Lab_WS/rrc_ws/src/project_pkgs/robot_control_pkg/tool_gravity_compensation/config/tool_gravity_calibration_dynamic_v2_merged.json
+    solver_mode: constrained_v2_merged
+    known_base_mass: 0.635
+    known_moving_total_mass: 1.40
+    fixed_force_bias: [-10.22840690612793, 5.418071746826172, -10.544869422912598]
+    fixed_torque_bias: [0.017, -0.010, -0.026]
+    com_xy_prior_std_m: 0.03
+    moving_mass_prior: [0.70, 0.70]
+    moving_mass_prior_std_kg: 0.70
+    first_moment_min_norm_std_kg_m: 1.0
+    min_link_mass_kg: 0.01
+    max_abs_com_m: 0.30

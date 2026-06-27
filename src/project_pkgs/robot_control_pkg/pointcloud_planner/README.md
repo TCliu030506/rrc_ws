@@ -112,3 +112,10 @@ ros2 run pointcloud_planner pcl_cloudslam --ros-args \
 ```bash
 ros2 run pointcloud_planner servol_trajectory_test.py   --execute
 ```
+
+用不同的颜色同时查看两个点云，一个点云为ROI，另一个为预建模。
+```bash
+pcl_viewer \
+  pcl_roi_refined_workpiece.pcd -fc 255,0,0 \
+  pcl_premodel_concave_workpiece.pcd -fc 0,255,0
+```

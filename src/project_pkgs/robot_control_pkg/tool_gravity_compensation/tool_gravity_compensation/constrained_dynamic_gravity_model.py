@@ -1,10 +1,6 @@
 import numpy as np
 
 
-_LINK_COUNT = 4
-_PARAMETER_COUNT = 16
-
-
 def _skew(vector):
     x, y, z = vector
     return np.array([
@@ -30,10 +26,15 @@ def _finite_array(value, shape, name):
     return array
 
 
-def _constraint_parameterization(base_mass, moving_total_mass):
-    constraints = np.zeros((2, _PARAMETER_COUNT), dtype=float)
+def _constraint_parameterization(
+    base_mass,
+    moving_total_mass,
+    link_count,
+    parameter_count,
+):
+    constraints = np.zeros((2, parameter_count), dtype=float)
     constraints[0, 0] = 1.0
-    constraints[1, 1:4] = 1.0
+    constraints[1, 1:link_count] = 1.0
     target = np.array([base_mass, moving_total_mass], dtype=float)
 
     left, singular_values, right_t = np.linalg.svd(
@@ -60,11 +61,13 @@ def _regularization_system(
     com_xy_prior_std_m,
     first_moment_min_norm_std_kg_m,
 ):
+    link_count = len(moving_mass_prior) + 1
+    parameter_count = 4 * link_count
     rows = []
     targets = []
 
     for moving_index, prior_mass in enumerate(moving_mass_prior, start=1):
-        row = np.zeros(_PARAMETER_COUNT, dtype=float)
+        row = np.zeros(parameter_count, dtype=float)
         row[moving_index] = 1.0 / moving_mass_prior_std_kg
         rows.append(row)
         targets.append(prior_mass / moving_mass_prior_std_kg)
@@ -72,15 +75,15 @@ def _regularization_system(
     reference_masses = np.concatenate(([base_mass], moving_mass_prior))
     for link_index, reference_mass in enumerate(reference_masses):
         xy_std = reference_mass * com_xy_prior_std_m
-        moment_start = 4 + 3 * link_index
+        moment_start = link_count + 3 * link_index
         for component in (0, 1):
-            row = np.zeros(_PARAMETER_COUNT, dtype=float)
+            row = np.zeros(parameter_count, dtype=float)
             row[moment_start + component] = 1.0 / xy_std
             rows.append(row)
             targets.append(0.0)
 
-    for moment_index in range(4, _PARAMETER_COUNT):
-        row = np.zeros(_PARAMETER_COUNT, dtype=float)
+    for moment_index in range(link_count, parameter_count):
+        row = np.zeros(parameter_count, dtype=float)
         row[moment_index] = 1.0 / first_moment_min_norm_std_kg_m
         rows.append(row)
         targets.append(0.0)
@@ -99,6 +102,7 @@ def solve_constrained_dynamic_gravity_params(
     moving_mass_prior_std_kg,
     first_moment_min_norm_std_kg_m,
     min_link_mass_kg,
+    normalize_measurements=False,
 ):
     base_mass = _positive_scalar(base_mass, "base_mass")
     moving_total_mass = _positive_scalar(
@@ -119,9 +123,17 @@ def solve_constrained_dynamic_gravity_params(
     )
     force_bias = _finite_array(force_bias, (3,), "force_bias")
     torque_bias = _finite_array(torque_bias, (3,), "torque_bias")
-    moving_mass_prior = _finite_array(
-        moving_mass_prior, (3,), "moving_mass_prior"
-    )
+    moving_mass_prior = np.asarray(moving_mass_prior, dtype=float)
+    if (
+        moving_mass_prior.ndim != 1
+        or moving_mass_prior.size < 1
+        or not np.all(np.isfinite(moving_mass_prior))
+    ):
+        raise ValueError(
+            "moving_mass_prior must contain finite moving-link masses"
+        )
+    link_count = int(moving_mass_prior.size + 1)
+    parameter_count = 4 * link_count
     if np.any(moving_mass_prior <= 0.0):
         raise ValueError("moving_mass_prior values must be > 0")
     if abs(float(np.sum(moving_mass_prior)) - moving_total_mass) > 1e-9:
@@ -130,7 +142,7 @@ def solve_constrained_dynamic_gravity_params(
         )
     if base_mass < min_link_mass_kg:
         raise ValueError("base_mass must be >= min_link_mass_kg")
-    if moving_total_mass < (_LINK_COUNT - 1) * min_link_mass_kg:
+    if moving_total_mass < (link_count - 1) * min_link_mass_kg:
         raise ValueError(
             "moving_total_mass cannot satisfy min_link_mass_kg"
         )
@@ -139,7 +151,7 @@ def solve_constrained_dynamic_gravity_params(
     if not samples:
         raise ValueError("at least one sample is required")
 
-    system = np.zeros((6 * len(samples), _PARAMETER_COUNT), dtype=float)
+    system = np.zeros((6 * len(samples), parameter_count), dtype=float)
     target = np.zeros(6 * len(samples), dtype=float)
     for sample_index, sample in enumerate(samples):
         g_sensor = _finite_array(
@@ -152,9 +164,9 @@ def solve_constrained_dynamic_gravity_params(
             sample["torque"], (3,), f"samples[{sample_index}].torque"
         )
         transforms = list(sample["transforms"])
-        if len(transforms) != _LINK_COUNT:
+        if len(transforms) != link_count:
             raise ValueError(
-                "sample transform count must be 4, "
+                f"sample transform count must be {link_count}, "
                 f"got {len(transforms)}"
             )
 
@@ -178,13 +190,18 @@ def solve_constrained_dynamic_gravity_params(
             )
             system[force_rows, link_index] = g_sensor
             system[torque_rows, link_index] = _skew(translation) @ g_sensor
-            moment_start = 4 + 3 * link_index
+            moment_start = link_count + 3 * link_index
             system[
                 torque_rows, moment_start:moment_start + 3
             ] = negative_skew_g @ rotation
 
     constraints, constraint_target, particular, null_space = (
-        _constraint_parameterization(base_mass, moving_total_mass)
+        _constraint_parameterization(
+            base_mass,
+            moving_total_mass,
+            link_count,
+            parameter_count,
+        )
     )
     regularization, regularization_target = _regularization_system(
         base_mass,
@@ -193,13 +210,18 @@ def solve_constrained_dynamic_gravity_params(
         com_xy_prior_std_m,
         first_moment_min_norm_std_kg_m,
     )
-    reduced_data = system @ null_space
+    measurement_scale = (
+        1.0 / np.sqrt(len(samples)) if normalize_measurements else 1.0
+    )
+    fit_system = system * measurement_scale
+    fit_target = target * measurement_scale
+    reduced_data = fit_system @ null_space
     augmented = np.vstack((
         reduced_data,
         regularization @ null_space,
     ))
     augmented_target = np.concatenate((
-        target - system @ particular,
+        fit_target - fit_system @ particular,
         regularization_target - regularization @ particular,
     ))
     free_solution, _, augmented_rank, singular_values = np.linalg.lstsq(
@@ -207,7 +229,7 @@ def solve_constrained_dynamic_gravity_params(
     )
     solution = particular + null_space @ free_solution
 
-    masses = solution[:4]
+    masses = solution[:link_count]
     if np.any(masses < min_link_mass_kg):
         raise ValueError(
             "solved link mass is below min_link_mass_kg"
@@ -222,7 +244,7 @@ def solve_constrained_dynamic_gravity_params(
     rms_residual = float(
         np.sqrt(np.mean(physical_residual * physical_residual))
     )
-    first_moments = solution[4:].reshape(_LINK_COUNT, 3)
+    first_moments = solution[link_count:].reshape(link_count, 3)
     coms = first_moments / masses[:, None]
     if singular_values.size == 0 or singular_values[-1] == 0.0:
         condition_number = float("inf")

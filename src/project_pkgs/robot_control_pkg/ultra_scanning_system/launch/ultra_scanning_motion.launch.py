@@ -14,7 +14,7 @@ from launch_ros.substitutions import FindPackageShare
 GLOBAL_LOG_LEVEL = 'WARN'
 ROBOT_IP = '192.168.1.102'
 ENABLE_ADMITTANCE = True
-TRAJECTORY_PLANNER = 'current_pose_hold'  # current_pose_hold, path_map, contact_scan
+TRAJECTORY_PLANNER = 'contact_scan'  # current_pose_hold, path_map, contact_scan
 
 # Frames
 BASE_FRAME = 'base'
@@ -40,7 +40,7 @@ CONTROL_WRENCH_TOPIC = '/arm_admittance_control/control_wrench'
 
 # Path-map trajectory 参数
 PATH_MAP_PUBLISH_RATE = 200.0
-PATH_MAP_MAX_LINEAR_SPEED = 0.002
+PATH_MAP_MAX_LINEAR_SPEED = 0.01
 PATH_MAP_MAX_ANGULAR_SPEED = 0.05
 PATH_MAP_LOOP_PATH = False
 PATH_MAP_ENABLE_RESAMPLING = True
@@ -52,7 +52,7 @@ CONTACT_SCAN_FORCE_AXIS = 'z'
 CONTACT_SCAN_FORCE_AXIS_SIGN = -1.0
 CONTACT_SCAN_APPROACH_AXIS_SIGN = 1.0
 CONTACT_SCAN_CONTACT_FORCE_THRESHOLD = 5.0
-CONTACT_SCAN_TARGET_CONTACT_FORCE = 15.0
+CONTACT_SCAN_TARGET_CONTACT_FORCE = 25.0
 CONTACT_SCAN_FORCE_RAMP_RATE = 0.5
 CONTACT_SCAN_ZERO_TORQUE_RX_RY_ENABLED = True
 CONTACT_SCAN_TARGET_TORQUE_RX = 0.0
@@ -125,7 +125,8 @@ def generate_launch_description():
             PathJoinSubstitution([
                 FindPackageShare('tool_gravity_compensation'),
                 'config',
-                'gravity_compensation_dynamic_params.yaml',
+                # 'gravity_compensation_dynamic_params.yaml',
+                'gravity_compensation_dynamic_v2_merged_params.yaml',
             ]),
             {
                 'wrench_in_topic': RAW_WRENCH_TOPIC,
@@ -297,6 +298,25 @@ def generate_launch_description():
         }],
     )
 
+    # 超声采集触发节点
+    frequency_tool_do_trigger_node = Node(
+        package='ur5_rtde_control',
+        executable='frequency_tool_do_trigger_node',
+        name='frequency_tool_do_trigger_node',
+        output='screen',
+        parameters=[{
+            'robot_ip': ROBOT_IP,
+            'pose_topic': EE_POSE_TOPIC,
+            'state_topic': CONTACT_SCAN_STATE_TOPIC,
+            'trigger_state': 'contact_scan',
+            'tool_do_index': 0,
+            'trigger_frequency_hz': 1.0,
+            'pulse_width_sec': 0.4,
+            'trigger_count': 1000,
+            'records_file': 'frequency_tool_do_triggers.csv',
+        }],
+    )
+
     actions = [
         SetEnvironmentVariable(
             'RCUTILS_LOGGING_SEVERITY_THRESHOLD',
@@ -313,6 +333,7 @@ def generate_launch_description():
             TimerAction(period=0.1, actions=[scan_pose_mux_node]),
             TimerAction(period=0.1, actions=[rtde_servol_frame_pose_controller_node]),
             TimerAction(period=0.5, actions=[admittance_controller_node]),
+            TimerAction(period=0.1, actions=[frequency_tool_do_trigger_node]),
         ])
 
     if TRAJECTORY_PLANNER == 'current_pose_hold':

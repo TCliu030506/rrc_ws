@@ -377,3 +377,54 @@ def test_rejects_invalid_solver_inputs(override, message):
 
     with pytest.raises(ValueError, match=message):
         _solve(samples, **override)
+
+
+def test_three_link_solver_is_invariant_to_repeated_samples_when_normalized():
+    masses = np.array([0.635, 0.7, 0.7])
+    first_moments = np.array([
+        [0.0, 0.0, 0.02],
+        [0.0, 0.0, 0.03],
+        [0.0, 0.0, 0.04],
+    ])
+    force_bias = np.array([0.2, -0.1, 0.3])
+    torque_bias = np.array([0.01, -0.02, 0.03])
+    samples = []
+    for index in range(12):
+        g_sensor, transforms = _pose(index)
+        samples.append(_sample(
+            g_sensor,
+            transforms[:3],
+            masses,
+            first_moments,
+            force_bias,
+            torque_bias,
+        ))
+
+    arguments = {
+        'base_mass': 0.635,
+        'moving_total_mass': 1.4,
+        'force_bias': force_bias,
+        'torque_bias': torque_bias,
+        'com_xy_prior_std_m': 0.03,
+        'moving_mass_prior': [0.7, 0.7],
+        'moving_mass_prior_std_kg': 0.7,
+        'first_moment_min_norm_std_kg_m': 1.0,
+        'min_link_mass_kg': 0.01,
+        'normalize_measurements': True,
+    }
+    once = solve_constrained_dynamic_gravity_params(
+        samples=samples,
+        **arguments,
+    )
+    repeated = solve_constrained_dynamic_gravity_params(
+        samples=samples * 10,
+        **arguments,
+    )
+
+    assert len(once['link_masses']) == 3
+    np.testing.assert_allclose(
+        repeated['link_masses'], once['link_masses'], atol=1e-10
+    )
+    np.testing.assert_allclose(
+        repeated['link_coms'], once['link_coms'], atol=1e-10
+    )

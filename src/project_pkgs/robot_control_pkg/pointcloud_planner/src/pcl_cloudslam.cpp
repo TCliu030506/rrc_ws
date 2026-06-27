@@ -187,6 +187,67 @@ bool load_matrix4d(const std::string &path, Eigen::Matrix4d *matrix)
     return true;
 }
 
+bool load_json_matrix4d(
+    const std::string &path,
+    const std::string &key,
+    Eigen::Matrix4d *matrix,
+    std::string *error_message)
+{
+    if (matrix == nullptr) {
+        if (error_message != nullptr) {
+            *error_message = "output matrix is null";
+        }
+        return false;
+    }
+
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        if (error_message != nullptr) {
+            *error_message = "failed to open file";
+        }
+        return false;
+    }
+
+    json data;
+    try {
+        file >> data;
+    } catch (const std::exception &e) {
+        if (error_message != nullptr) {
+            *error_message = std::string("failed to parse JSON: ") + e.what();
+        }
+        return false;
+    }
+
+    if (!data.contains(key) || !data[key].is_array() || data[key].size() != 4) {
+        if (error_message != nullptr) {
+            *error_message = "missing or invalid 4x4 matrix key: " + key;
+        }
+        return false;
+    }
+
+    Eigen::Matrix4d loaded = Eigen::Matrix4d::Identity();
+    for (int row = 0; row < 4; ++row) {
+        if (!data[key][row].is_array() || data[key][row].size() != 4) {
+            if (error_message != nullptr) {
+                *error_message = "matrix row is not length 4";
+            }
+            return false;
+        }
+        for (int col = 0; col < 4; ++col) {
+            if (!data[key][row][col].is_number()) {
+                if (error_message != nullptr) {
+                    *error_message = "matrix element is not numeric";
+                }
+                return false;
+            }
+            loaded(row, col) = data[key][row][col].get<double>();
+        }
+    }
+
+    *matrix = loaded;
+    return true;
+}
+
 bool compute_cloud_bounds(
     const PointCloudXYZ::ConstPtr &cloud,
     Eigen::Vector3d *min_point,
@@ -1572,8 +1633,32 @@ bool pcl_cloudslam::load_camera_transform(const std::string& file_path)
             RCLCPP_ERROR(this->get_logger(), "Incomplete T_cam2gripper matrix, expected 4 rows, got %d", row);
             return false;
         }
+
+        const std::filesystem::path calibration_path(file_path);
+        const std::string color_to_depth_path =
+            (calibration_path.parent_path() / "camera_color_to_depth_transform.json").string();
+        Eigen::Matrix4d color_to_depth = Eigen::Matrix4d::Identity();
+        std::string color_to_depth_error;
+        if (!load_json_matrix4d(
+                color_to_depth_path,
+                "T_color_to_depth",
+                &color_to_depth,
+                &color_to_depth_error)) {
+            RCLCPP_ERROR(
+                this->get_logger(),
+                "Failed to load color-to-depth camera transform: %s (%s)",
+                color_to_depth_path.c_str(),
+                color_to_depth_error.c_str()
+            );
+            return false;
+        }
+        camera_to_end_effector = camera_to_end_effector * color_to_depth;
         
-        RCLCPP_INFO(this->get_logger(), "Camera transform matrix loaded successfully");
+        RCLCPP_INFO(
+            this->get_logger(),
+            "Camera transform matrix loaded successfully with color->depth correction: %s",
+            color_to_depth_path.c_str()
+        );
         return true;
     } catch (const std::exception& e) {
         RCLCPP_ERROR(this->get_logger(), "Error loading camera transform: %s", e.what());

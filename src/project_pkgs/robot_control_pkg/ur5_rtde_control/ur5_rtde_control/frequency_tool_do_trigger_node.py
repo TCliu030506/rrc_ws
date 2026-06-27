@@ -1,18 +1,19 @@
 """
-按指定频率触发 UR 工具数字输出，并记录每次触发时的末端位姿。
+在接触扫查阶段按指定频率触发 UR 工具数字输出，并记录每次触发时的末端位姿。
 
-节点订阅 `/asm_ee_site/pose`，在每次 tool DO 上升沿记录当前时间和最新
-位姿。退出时将 DO 恢复为低电平，并把记录保存到
-`ultra_scanning_system/data` 下的 CSV 文件。
+节点订阅 `/contact_scan/state` 和 `/asm_ee_site/pose`。当状态进入
+`contact_scan` 后，节点按固定频率产生 tool DO 上升沿；每次上升沿记录
+当前时间和最新位姿。达到指定触发次数后，节点保存 CSV 并退出。
 """
 
 from pathlib import Path
+import socket
 from typing import Iterable, Sequence
 
 import rclpy
 from geometry_msgs.msg import Pose
 from rclpy.node import Node
-from rtde_io import RTDEIOInterface as RTDEIO
+from std_msgs.msg import String
 
 from ur5_rtde_control.tool_do_pose_trigger_node import (
     PoseTuple,
@@ -66,6 +67,21 @@ def validate_trigger_timing(
     return period_sec
 
 
+def rtde_tool_do_value_for_physical_level(physical_high: bool) -> bool:
+    """将期望的物理电平转换为当前硬件接线下的机器人 Tool DO 逻辑值."""
+    return not physical_high
+
+
+def build_set_tool_do_script(tool_do_index: int, robot_value: bool) -> str:
+    """构造只设置 Tool DO 的 URScript secondary program."""
+    value_text = 'True' if robot_value else 'False'
+    return (
+        'sec set_tool_do_trigger():\n'
+        f'  set_tool_digital_out({int(tool_do_index)}, {value_text})\n'
+        'end\n'
+    )
+
+
 class FrequencyToolDOTriggerNode(Node):
     """按固定频率输出 tool DO 脉冲并记录最新末端位姿."""
 
@@ -74,9 +90,14 @@ class FrequencyToolDOTriggerNode(Node):
 
         self.declare_parameter('robot_ip', '192.168.1.102')
         self.declare_parameter('pose_topic', '/asm_ee_site/pose')
+        self.declare_parameter('state_topic', '/contact_scan/state')
+        self.declare_parameter('trigger_state', 'contact_scan')
         self.declare_parameter('tool_do_index', 0)
-        self.declare_parameter('trigger_frequency_hz', 10.0)
-        self.declare_parameter('pulse_width_sec', 0.001)
+        self.declare_parameter('trigger_frequency_hz', 1.1)
+        self.declare_parameter('pulse_width_sec', 0.4)
+        self.declare_parameter('trigger_count', 1000)
+        self.declare_parameter('urscript_port', 30002)
+        self.declare_parameter('urscript_timeout_sec', 0.2)
         self.declare_parameter(
             'records_file',
             'frequency_tool_do_triggers.csv',
@@ -84,6 +105,8 @@ class FrequencyToolDOTriggerNode(Node):
 
         self.robot_ip = str(self.get_parameter('robot_ip').value)
         self.pose_topic = str(self.get_parameter('pose_topic').value)
+        self.state_topic = str(self.get_parameter('state_topic').value)
+        self.trigger_state = str(self.get_parameter('trigger_state').value)
         self.tool_do_index = int(self.get_parameter('tool_do_index').value)
         self.trigger_frequency_hz = float(
             self.get_parameter('trigger_frequency_hz').value
@@ -91,6 +114,15 @@ class FrequencyToolDOTriggerNode(Node):
         self.pulse_width_sec = float(
             self.get_parameter('pulse_width_sec').value
         )
+        self.trigger_count = int(self.get_parameter('trigger_count').value)
+        if self.trigger_count <= 0:
+            raise ValueError('trigger_count must be > 0')
+        self.urscript_port = int(self.get_parameter('urscript_port').value)
+        self.urscript_timeout_sec = float(
+            self.get_parameter('urscript_timeout_sec').value
+        )
+        if self.urscript_timeout_sec <= 0.0:
+            raise ValueError('urscript_timeout_sec must be > 0')
         self.records_file = resolve_records_file(
             str(self.get_parameter('records_file').value)
         )
@@ -99,52 +131,124 @@ class FrequencyToolDOTriggerNode(Node):
             self.pulse_width_sec,
         )
 
-        self.rtde_io = RTDEIO(self.robot_ip)
         self.current_pose: PoseTuple | None = None
         self.records: list[tuple[float, PoseTuple]] = []
+        self.scan_active = False
         self.pulse_active = False
         self.pulse_timer = None
         self.records_saved = False
+        self.done = False
+        self.urscript_socket: socket.socket | None = None
 
         self.set_tool_do(False)
         self.create_subscription(Pose, self.pose_topic, self._on_pose, 10)
+        self.create_subscription(String, self.state_topic, self._on_state, 10)
         self.create_timer(self.period_sec, self._trigger)
 
         self.get_logger().info(
             'Frequency tool DO trigger started: '
             f'frequency={self.trigger_frequency_hz:.3f} Hz, '
             f'pulse_width={self.pulse_width_sec:.6f} s, '
-            f'pose_topic={self.pose_topic}, records_file={self.records_file}'
+            f'pose_topic={self.pose_topic}, state_topic={self.state_topic}, '
+            f'trigger_state={self.trigger_state}, '
+            f'trigger_count={self.trigger_count}, '
+            f'urscript_port={self.urscript_port}, '
+            f'records_file={self.records_file}'
         )
 
     def set_tool_do(self, value: bool) -> None:
-        """设置工具数字输出."""
-        self.rtde_io.setToolDigitalOut(self.tool_do_index, bool(value))
+        """设置工具数字输出的物理电平，True 表示物理高电平."""
+        robot_value = rtde_tool_do_value_for_physical_level(bool(value))
+        script = build_set_tool_do_script(self.tool_do_index, robot_value)
+        self._send_urscript(script)
+
+    def _connect_urscript_socket(self) -> socket.socket:
+        if self.urscript_socket is not None:
+            return self.urscript_socket
+        self.urscript_socket = socket.create_connection(
+            (self.robot_ip, self.urscript_port),
+            timeout=self.urscript_timeout_sec,
+        )
+        self.urscript_socket.settimeout(self.urscript_timeout_sec)
+        return self.urscript_socket
+
+    def _close_urscript_socket(self) -> None:
+        if self.urscript_socket is None:
+            return
+        try:
+            self.urscript_socket.close()
+        finally:
+            self.urscript_socket = None
+
+    def _send_urscript(self, script: str) -> None:
+        data = script.encode('utf-8')
+        try:
+            self._connect_urscript_socket().sendall(data)
+        except OSError:
+            self._close_urscript_socket()
+            self._connect_urscript_socket().sendall(data)
 
     def _on_pose(self, msg: Pose) -> None:
         self.current_pose = pose_msg_to_tuple(msg)
 
+    def _on_state(self, msg: String) -> None:
+        was_scan_active = self.scan_active
+        self.scan_active = msg.data == self.trigger_state
+        if self.scan_active and not was_scan_active:
+            self._trigger()
+        elif (
+            was_scan_active
+            and not self.scan_active
+            and len(self.records) < self.trigger_count
+        ):
+            self.save_records()
+
     def _trigger(self) -> None:
         """产生一次上升沿，并记录该时刻的最新末端位姿."""
-        if self.current_pose is None or self.pulse_active:
+        if (
+            self.done
+            or not self.scan_active
+            or self.current_pose is None
+            or self.pulse_active
+            or len(self.records) >= self.trigger_count
+        ):
             return
 
         timestamp_sec = self.get_clock().now().nanoseconds * 1e-9
+        try:
+            self.set_tool_do(True)
+        except OSError as exc:
+            self.get_logger().warn(f'Failed to set trigger DO high: {exc}')
+            return
+
         self.records.append((timestamp_sec, self.current_pose))
         self.records_saved = False
         self.pulse_active = True
-        self.set_tool_do(True)
         self.pulse_timer = self.create_timer(
             self.pulse_width_sec,
             self._finish_pulse,
         )
 
     def _finish_pulse(self) -> None:
-        self.set_tool_do(False)
+        try:
+            self.set_tool_do(False)
+        except OSError as exc:
+            self.get_logger().warn(f'Failed to set trigger DO low: {exc}')
         self.pulse_active = False
         if self.pulse_timer is not None:
             self.destroy_timer(self.pulse_timer)
             self.pulse_timer = None
+        if len(self.records) >= self.trigger_count:
+            self._complete()
+
+    def _complete(self) -> None:
+        if self.done:
+            return
+        self.done = True
+        self.save_records()
+        self.get_logger().info(
+            f'Completed {len(self.records)} triggers, node will exit.'
+        )
 
     def save_records(self) -> None:
         if self.records_saved:
@@ -161,6 +265,7 @@ class FrequencyToolDOTriggerNode(Node):
         except Exception as exc:
             self.get_logger().warn(f'Failed to reset tool DO: {exc}')
         self.save_records()
+        self._close_urscript_socket()
         return super().destroy_node()
 
 
@@ -168,12 +273,14 @@ def main(args: Sequence[str] | None = None) -> None:
     rclpy.init(args=args)
     node = FrequencyToolDOTriggerNode()
     try:
-        rclpy.spin(node)
+        while rclpy.ok() and not node.done:
+            rclpy.spin_once(node, timeout_sec=0.1)
     except KeyboardInterrupt:
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

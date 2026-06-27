@@ -60,13 +60,13 @@ def generate_launch_description() -> LaunchDescription:
         output= 'screen'
       )
 
-    # 双编码器节点
-    encoder_dual_launch = IncludeLaunchDescription(
+    # 三编码器节点
+    encoder_triple_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
                 FindPackageShare('brt_rs485_encoder_pkg'),
                 'launch',
-                'brt_rs485_encoder_dual.launch.py',
+                'brt_rs485_encoder_triple.launch.py',
             ])
         ),
     )
@@ -117,11 +117,11 @@ def generate_launch_description() -> LaunchDescription:
     )
 
     return LaunchDescription([
-        TimerAction(period=0.0, actions=[ur_driver_launch]),
+        # TimerAction(period=0.0, actions=[ur_driver_launch]),
         TimerAction(period=3.0, actions=[realsense_node]),
         TimerAction(period=3.0, actions=[force_sensor_node]),
         TimerAction(period=3.0, actions=[ur_msg_pub_node]),
-        TimerAction(period=3.0, actions=[encoder_dual_launch]),
-        TimerAction(period=3.0, actions=[asm_tool_tf_broadcaster]),
-        TimerAction(period=3.0, actions=[ee_state_from_tf_node]),
+        TimerAction(period=3.0, actions=[encoder_triple_launch]),
+        TimerAction(period=4.0, actions=[asm_tool_tf_broadcaster]),
+        TimerAction(period=4.0, actions=[ee_state_from_tf_node]),
     ])

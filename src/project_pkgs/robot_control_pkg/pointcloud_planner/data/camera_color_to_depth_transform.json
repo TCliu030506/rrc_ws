@@ -1,0 +1,31 @@
+{
+    "description": "RealSense static transform from camera_color_optical_frame to camera_depth_optical_frame, copied from tf2_echo.",
+    "source_frame": "camera_color_optical_frame",
+    "target_frame": "camera_depth_optical_frame",
+    "T_color_to_depth": [
+        [
+            1.0,
+            -0.010,
+            0.005,
+            0.015
+        ],
+        [
+            0.010,
+            1.0,
+            0.003,
+            0.0
+        ],
+        [
+            -0.005,
+            -0.003,
+            1.0,
+            0.0
+        ],
+        [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+        ]
+    ]
+}

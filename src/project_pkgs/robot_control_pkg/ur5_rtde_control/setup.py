@@ -34,6 +34,7 @@ setup(
             'my_demo = ur5_rtde_control.my_demo:main',
             'io_demo = ur5_rtde_control.io_demo:main',
             'periodic_tool_io_demo = ur5_rtde_control.periodic_tool_io_demo:main',
+            'periodic_tool_io_demo_urscript = ur5_rtde_control.periodic_tool_io_demo_urscript:main',
             'frequency_tool_do_trigger_node = ur5_rtde_control.frequency_tool_do_trigger_node:main',
             'omni_pub_test_node = ur5_rtde_control.omni_pub_test_node:main',
             'rtde_velocity_publisher_node = ur5_rtde_control.rtde_velocity_publisher_node:main',

@@ -33,6 +33,7 @@ pcl_cloudslam_node:
     tool_mount_rx: 3.141592653589793
     tool_mount_ry: 0.0
     tool_mount_rz: 0.0
+    # tool_mount_rz: 1.5707963267948966
 
     # 探头尖端相对 TCP 的偏移，单位 m。
     # 若输出路径希望控制 TCP 而不是探头尖端，需要按实际夹具标定填写。
@@ -61,12 +62,12 @@ pcl_cloudslam_node:
     planning_mode: premodel_concave_surface
 
     # 探头有效长度/宽度，单位 m，用于 ROI 边界收缩，避免探头越界。
-    probe_length_m: 0.05
-    probe_width_m: 0.02
+    probe_length_m: 0.0384
+    probe_width_m: 0.01
 
     # 探头边界额外安全余量，单位 m。
     # 调大：路径离 ROI 边缘更远；调小：覆盖区域更大但越界风险增加。
-    probe_boundary_margin_m: 0.02
+    probe_boundary_margin_m: 0.005
 
     # cylinder_preplan 二次视角距离，单位 m。
     cylinder_view_distance_m: 0.35
@@ -78,7 +79,7 @@ pcl_cloudslam_node:
     platform_plane_threshold: 0.005
 
     # ROI 相对平台的高度过滤范围，单位 m。
-    roi_height_min: 0.008
+    roi_height_min: 0.02
     roi_height_max: 0.10
 
     # 法向估计邻域点数。
@@ -87,7 +88,7 @@ pcl_cloudslam_node:
 
     # ROI 法向与平台/目标方向的最小点积阈值。
     # 调大：筛选更严格；调小：保留更多点。
-    roi_normal_dot_min: 0.80
+    roi_normal_dot_min: 0.90
 
     # 聚类距离阈值，单位 m。
     roi_cluster_tolerance: 0.008
@@ -110,7 +111,7 @@ pcl_cloudslam_node:
     workpiece_center_percentile_high: 95.0
 
     # 工件法向拟合半径，单位 m。
-    workpiece_normal_fit_radius: 0.05
+    workpiece_normal_fit_radius: 0.20
 
     # 工件法向拟合邻域点数和最少有效点数。
     workpiece_normal_fit_k: 100
@@ -123,22 +124,22 @@ pcl_cloudslam_node:
     workpiece_axis_projection_min_norm: 0.1
 
     # 是否优先使用平台法向作为工件法向参考。
-    workpiece_use_platform_normal: true
+    workpiece_use_platform_normal: false
 
     # =========================
     # 6. 凹曲面路径生成
     # =========================
     # 探头径向有效长度，单位 m。
-    concave_probe_radial_length: 0.05
+    concave_probe_radial_length: 0.0384
 
     # 凹曲面径向分层步长，单位 m。
     concave_radial_step: 0.02
 
     # 凹曲面边界安全余量，单位 m。
-    concave_boundary_margin: 0.080
+    concave_boundary_margin: 0.025
 
     # 凹曲面内端保留半径，单位 m。
-    concave_r_end: 0.008
+    concave_r_end: 0.05
 
     # 凹曲面单层扫描点间距，单位 m。
     concave_scan_point_spacing: 0.002
@@ -162,7 +163,7 @@ pcl_cloudslam_node:
     concave_normal_smoothing_alpha: 0.05
 
     # 凹曲面进给方向插补步长，单位 m。
-    concave_feed_step: 0.002
+    concave_feed_step: 0.001
 
     # 是否在凹曲面层间增加过渡点。
     concave_enable_transition_points: true

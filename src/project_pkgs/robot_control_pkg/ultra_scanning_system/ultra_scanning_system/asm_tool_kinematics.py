@@ -204,7 +204,7 @@ def _v2_dynamic_transforms(
     joint2_rad: float,
     joint3_m: float,
 ) -> list[TransformSpec]:
-    link1_z = round(0.10 + float(joint3_m), 8)
+    link1_z = round(0.098 + float(joint3_m), 8)
     return [
         TransformSpec(
             "asm_tool_base_link",

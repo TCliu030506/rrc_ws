@@ -1,0 +1,65 @@
+{
+  "estimated_at": "2026-06-26T01:32:49.277782",
+  "mode": "hardware_dynamic_service",
+  "world_frame": "base",
+  "sensor_frame": "asm_force_sensor_link",
+  "gravity_norm": 9.81,
+  "sample_count": 1050,
+  "rank": 10,
+  "rms_residual": 3.168345684369434,
+  "link_frames": [
+    "asm_tool_base_link",
+    "asm_tool_link1",
+    "asm_tool_link2"
+  ],
+  "link_masses": [
+    0.635,
+    0.698852989502131,
+    0.7011470104978684
+  ],
+  "link_com_x": [
+    -0.0017623445828528152,
+    -0.0019457787300343257,
+    -0.0019648457284433575
+  ],
+  "link_com_y": [
+    -0.0033077471779833743,
+    -0.003652035002617124,
+    -0.0036400862317492026
+  ],
+  "link_com_z": [
+    0.10842231360586353,
+    0.0985159542477902,
+    -0.06881520374505408
+  ],
+  "force_bias": [
+    -13.72840690612793,
+    11.508071746826172,
+    -8.0544869422912598
+  ],
+  "torque_bias": [
+    0.017,
+    -0.01,
+    -0.026
+  ],
+  "tool_joint_names": [
+    "brt_encoder1_joint",
+    "brt_encoder2_joint",
+    "brt_encoder3_joint"
+  ],
+  "asm_version": 2,
+  "solver_mode": "constrained_v2_merged",
+  "known_base_mass": 0.635,
+  "known_moving_total_mass": 1.4,
+  "com_xy_prior_std_m": 0.03,
+  "moving_mass_prior": [
+    0.7,
+    0.7
+  ],
+  "data_rank": 7,
+  "reduced_data_rank": 5,
+  "augmented_rank": 10,
+  "mass_constraint_error": 4.440892098500626e-16,
+  "condition_number": 53.706856101721115,
+  "parameter_interpretation": "regularized_equivalent_parameters"
+}

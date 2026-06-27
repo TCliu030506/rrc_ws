@@ -1,0 +1,25 @@
+dynamic_gravity_compensation_node:
+  ros__parameters:
+    wrench_in_topic: /external_force_torque_wrench
+    wrench_out_topic: /external_force_torque_wrench_compensated
+    gravity_wrench_topic: /external_gravity_compensation_wrench_model
+    enable_inertia_compensation: false
+    accel_topic: /asm_force_sensor_link/accel
+    inertia_wrench_topic: /external_inertia_compensation_wrench_model
+    max_inertia_force: 30.0
+    max_inertia_torque: 5.0
+    max_accel_age_sec: 0.2
+    calibration_file: /home/liutiancheng/Lab_WS/rrc_ws/src/project_pkgs/robot_control_pkg/tool_gravity_compensation/config/tool_gravity_calibration_dynamic_v2_merged.json
+    world_frame: base
+    sensor_frame: asm_force_sensor_link
+    gravity_norm: 9.81
+    link_frames:
+      - asm_tool_base_link
+      - asm_tool_link1
+      - asm_tool_link2
+    link_masses: [0.635, 0.70, 0.70]
+    link_com_x: [0.0, 0.0, 0.0]
+    link_com_y: [0.0, 0.0, 0.0]
+    link_com_z: [0.0, 0.0, 0.0]
+    force_bias: [-10.22840690612793, 5.418071746826172, -10.544869422912598]
+    torque_bias: [0.017, -0.010, -0.026]

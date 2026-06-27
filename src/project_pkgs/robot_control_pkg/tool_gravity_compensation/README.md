@@ -225,6 +225,28 @@ ros2 topic echo /external_force_torque_wrench_compensated
 
 ## Config Files
 
+## ASM v2 合并刚体模式
+
+当 `asm_tool_link2` 与 `asm_tool_link3` 之间的旋转关节在标定和补偿期间保持
+基本不变时，可将二者及末端固定零件作为一个刚体，并使用三刚体模型：
+
+```text
+asm_tool_base_link
+asm_tool_link1
+asm_tool_link2  # 代表 link2 + link3 + waterproof + ee
+```
+
+该模式将 X/Y 质心软约束尺度设为 30 mm，并按采样数归一化测量方程，避免
+重复采样削弱正则项。启动命令：
+
+```bash
+ros2 launch tool_gravity_compensation gravity_calibration_dynamic_v2_merged.launch.py
+ros2 launch tool_gravity_compensation gravity_compensation_dynamic_v2_merged.launch.py
+```
+
+使用此模式期间必须保持 `asm_tool_link2 -> asm_tool_link3` 的关节角接近标定
+时的固定角度；若该关节明显运动，应改回四刚体模式。
+
 - `config/gravity_calibration_params.yaml`
 - `config/gravity_compensation_params.yaml`
 

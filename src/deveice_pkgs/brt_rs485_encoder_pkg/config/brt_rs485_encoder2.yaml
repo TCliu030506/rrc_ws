@@ -12,7 +12,8 @@ brt_rs485_encoder_node:
     encoder_type: rotary
     sample_time_ms: 100
     position_sign: -1.0
-    angle_offset_rad: 3.0418
+    # angle_offset_rad: 3.0418
+    angle_offset_rad: 3.095
     zero_offset_count: 0
     reconnect_interval_sec: 2.0
     dry_run: false

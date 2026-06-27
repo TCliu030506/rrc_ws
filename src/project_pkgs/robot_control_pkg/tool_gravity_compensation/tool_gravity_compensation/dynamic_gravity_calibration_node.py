@@ -26,9 +26,14 @@ _CONSTRAINED_V2_LINK_FRAMES = [
     'asm_tool_link2',
     'asm_tool_link3',
 ]
+_CONSTRAINED_V2_MERGED_LINK_FRAMES = [
+    'asm_tool_base_link',
+    'asm_tool_link1',
+    'asm_tool_link2',
+]
 
 
-def _validate_constrained_v2_options(options):
+def _validate_constrained_v2_options(options, moving_link_count=3):
     positive_scalars = (
         'known_base_mass',
         'known_moving_total_mass',
@@ -43,12 +48,19 @@ def _validate_constrained_v2_options(options):
         if not np.isfinite(value) or value <= 0.0:
             raise ValueError(f'{name} must be finite and > 0')
 
-    for name in ('fixed_force_bias', 'fixed_torque_bias', 'moving_mass_prior'):
+    for name in ('fixed_force_bias', 'fixed_torque_bias'):
         values = np.asarray(options[name], dtype=float)
         if values.shape != (3,) or not np.all(np.isfinite(values)):
             raise ValueError(f'{name} must contain 3 finite values')
 
     moving_mass_prior = np.asarray(options['moving_mass_prior'], dtype=float)
+    if (
+        moving_mass_prior.shape != (moving_link_count,)
+        or not np.all(np.isfinite(moving_mass_prior))
+    ):
+        raise ValueError(
+            f'moving_mass_prior must contain {moving_link_count} finite values'
+        )
     if np.any(moving_mass_prior <= 0.0):
         raise ValueError('moving_mass_prior values must be > 0')
     moving_total_mass = float(options['known_moving_total_mass'])
@@ -60,7 +72,7 @@ def _validate_constrained_v2_options(options):
     min_link_mass = float(options['min_link_mass_kg'])
     if float(options['known_base_mass']) < min_link_mass:
         raise ValueError('known_base_mass must be >= min_link_mass_kg')
-    if moving_total_mass < 3.0 * min_link_mass:
+    if moving_total_mass < moving_link_count * min_link_mass:
         raise ValueError(
             'known_moving_total_mass cannot satisfy min_link_mass_kg'
         )
@@ -73,13 +85,24 @@ def solve_calibration_samples(samples, link_frames, solver_mode, options):
             link_count=len(link_frames),
         )
 
-    if solver_mode == 'constrained_v2':
-        if list(link_frames) != _CONSTRAINED_V2_LINK_FRAMES:
+    constrained_modes = {
+        'constrained_v2': (_CONSTRAINED_V2_LINK_FRAMES, False),
+        'constrained_v2_merged': (
+            _CONSTRAINED_V2_MERGED_LINK_FRAMES,
+            True,
+        ),
+    }
+    if solver_mode in constrained_modes:
+        expected_frames, normalize_measurements = constrained_modes[solver_mode]
+        if list(link_frames) != expected_frames:
             raise ValueError(
-                'constrained_v2 requires link_frames in order: '
-                + ', '.join(_CONSTRAINED_V2_LINK_FRAMES)
+                f'{solver_mode} requires link_frames in order: '
+                + ', '.join(expected_frames)
             )
-        _validate_constrained_v2_options(options)
+        _validate_constrained_v2_options(
+            options,
+            moving_link_count=len(expected_frames) - 1,
+        )
         return solve_constrained_dynamic_gravity_params(
             samples=samples,
             base_mass=options['known_base_mass'],
@@ -93,9 +116,21 @@ def solve_calibration_samples(samples, link_frames, solver_mode, options):
                 options['first_moment_min_norm_std_kg_m']
             ),
             min_link_mass_kg=options['min_link_mass_kg'],
+            normalize_measurements=normalize_measurements,
         )
 
     raise ValueError(f'Unknown solver_mode: {solver_mode}')
+
+
+def format_constrained_v2_diagnostics(masses, coms, result):
+    return (
+        f'link_masses={np.asarray(masses, dtype=float).tolist()}, '
+        f'link_coms={np.asarray(coms, dtype=float).tolist()}, '
+        f'rms_residual={float(result["rms_residual"]):.6f}, '
+        f'data_rank={int(result["data_rank"])}, '
+        f'reduced_data_rank={int(result["reduced_data_rank"])}, '
+        f'condition_number={float(result["condition_number"]):.6g}'
+    )
 
 
 class DynamicGravityCalibrationNode(Node):
@@ -184,13 +219,21 @@ class DynamicGravityCalibrationNode(Node):
             raise ValueError('sample_period_sec must be > 0')
         if not self.link_frames:
             raise ValueError('link_frames must not be empty')
-        if self.solver_mode == 'constrained_v2':
-            if self.link_frames != _CONSTRAINED_V2_LINK_FRAMES:
+        constrained_frames = {
+            'constrained_v2': _CONSTRAINED_V2_LINK_FRAMES,
+            'constrained_v2_merged': _CONSTRAINED_V2_MERGED_LINK_FRAMES,
+        }
+        if self.solver_mode in constrained_frames:
+            expected_frames = constrained_frames[self.solver_mode]
+            if self.link_frames != expected_frames:
                 raise ValueError(
-                    'constrained_v2 requires link_frames in order: '
-                    + ', '.join(_CONSTRAINED_V2_LINK_FRAMES)
+                    f'{self.solver_mode} requires link_frames in order: '
+                    + ', '.join(expected_frames)
                 )
-            _validate_constrained_v2_options(self.solver_options)
+            _validate_constrained_v2_options(
+                self.solver_options,
+                moving_link_count=len(expected_frames) - 1,
+            )
 
         self.samples = []
         self.latest_wrench = None
@@ -355,7 +398,7 @@ class DynamicGravityCalibrationNode(Node):
 
         masses = np.asarray(result['link_masses'], dtype=float)
         coms = np.asarray(result['link_coms'], dtype=float)
-        if self.solver_mode == 'constrained_v2':
+        if self.solver_mode in ('constrained_v2', 'constrained_v2_merged'):
             max_abs_com = float(self.solver_options['max_abs_com_m'])
             if (
                 not np.all(np.isfinite(coms))
@@ -364,7 +407,8 @@ class DynamicGravityCalibrationNode(Node):
                 response.success = False
                 response.message = (
                     'Constrained v2 solve rejected: '
-                    f'link COM exceeds max_abs_com_m={max_abs_com}'
+                    f'link COM exceeds max_abs_com_m={max_abs_com}; '
+                    + format_constrained_v2_diagnostics(masses, coms, result)
                 )
                 self.get_logger().error(response.message)
                 return response
@@ -402,7 +446,7 @@ class DynamicGravityCalibrationNode(Node):
             'torque_bias': [float(value) for value in result['torque_bias']],
             'tool_joint_names': list(self.tool_joint_names),
         }
-        if self.solver_mode == 'constrained_v2':
+        if self.solver_mode in ('constrained_v2', 'constrained_v2_merged'):
             data.update({
                 'asm_version': 2,
                 'solver_mode': self.solver_mode,
