@@ -67,6 +67,7 @@ CONTACT_SCAN_PRE_CONTACT_SPEED = 0.0001
 CONTACT_SCAN_RETRACT_DISTANCE = 0.05
 CONTACT_SCAN_STATE_TOPIC = '/contact_scan/state'
 SCAN_POSE_MUX_ADMITTANCE_BLEND_DURATION = 0.001
+SCAN_POSE_MUX_APPROACH_BLEND_DURATION = 1.0
 
 # 一体化 servoL 执行节点参数：内部完成 asm_ee_site -> tool0 的 TF 转换。
 SERVO_ENABLE_DEBUG_POSE_PUBLISH = True
@@ -270,6 +271,7 @@ def generate_launch_description():
             'state_topic': CONTACT_SCAN_STATE_TOPIC,
             'direct_states': ['approach', 'pre_contact'],
             'admittance_blend_duration': SCAN_POSE_MUX_ADMITTANCE_BLEND_DURATION,
+            'approach_blend_duration': SCAN_POSE_MUX_APPROACH_BLEND_DURATION,
         }],
     )
     # 一体化 servoL 执行节点

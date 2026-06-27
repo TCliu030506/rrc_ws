@@ -87,6 +87,7 @@ class ScanPoseMux(Node):
         self.declare_parameter('state_topic', '/contact_scan/state')
         self.declare_parameter('direct_states', ['approach', 'pre_contact'])
         self.declare_parameter('admittance_blend_duration', 0.5)
+        self.declare_parameter('approach_blend_duration', 0.5)
 
         direct_pose_topic = str(self.get_parameter('direct_pose_topic').value)
         admittance_pose_topic = str(self.get_parameter('admittance_pose_topic').value)
@@ -95,6 +96,9 @@ class ScanPoseMux(Node):
         self.direct_states = set(str(v) for v in self.get_parameter('direct_states').value)
         self.admittance_blend_duration = float(
             self.get_parameter('admittance_blend_duration').value
+        )
+        self.approach_blend_duration = float(
+            self.get_parameter('approach_blend_duration').value
         )
         # current_state 由 /contact_scan/state 更新。初始为空时默认不直通，
         # 即在没有状态信息前优先使用导纳输出，避免误把轨迹源直接送给 servo。
@@ -108,6 +112,8 @@ class ScanPoseMux(Node):
         # blend_* 只在“直通 -> 导纳”切换后短时间有效，用于避免输出位姿突跳。
         self.blend_start_pose: Pose | None = None
         self.blend_start_time: float | None = None
+        self.direct_blend_start_pose: Pose | None = None
+        self.direct_blend_start_time: float | None = None
 
         self.pose_pub = self.create_publisher(Pose, output_pose_topic, 10)
         self.create_subscription(Pose, direct_pose_topic, self._on_direct_pose, 10)
@@ -126,25 +132,31 @@ class ScanPoseMux(Node):
             f'direct={direct_pose_topic}, admittance={admittance_pose_topic}, '
             f'output={output_pose_topic}, state={state_topic}, '
             f'direct_states={sorted(self.direct_states)}, '
-            f'admittance_blend_duration={self.admittance_blend_duration:.3f}s'
+            f'admittance_blend_duration={self.admittance_blend_duration:.3f}s, '
+            f'approach_blend_duration={self.approach_blend_duration:.3f}s'
         )
 
     def _on_state(self, msg: String) -> None:
         """接收接触扫查状态，并根据状态边沿启动或清除导纳接管插值。"""
         was_direct = should_use_direct_pose(self.current_state, self.direct_states)
         will_use_direct = should_use_direct_pose(msg.data, self.direct_states)
+        will_enter_approach = msg.data == 'approach' and self.current_state != 'approach'
         self.current_state = msg.data
         # 只有从直通状态离开时才需要平滑接管；进入直通状态时直接使用轨迹源。
         if was_direct and not will_use_direct:
             self._start_admittance_blend()
         elif will_use_direct:
             self._clear_admittance_blend()
+        if will_enter_approach:
+            self._start_direct_blend()
+        elif msg.data != 'approach':
+            self._clear_direct_blend()
 
     def _on_direct_pose(self, msg: Pose) -> None:
         """接收轨迹源名义位姿；仅在配置的直通状态下转发到 servo。"""
         self.latest_direct_pose = msg
         if should_use_direct_pose(self.current_state, self.direct_states):
-            self._publish_pose(msg)
+            self._publish_pose(self._blend_direct_pose(msg))
 
     def _on_admittance_pose(self, msg: Pose) -> None:
         """接收导纳输出位姿；非直通状态下转发，必要时先做平滑插值。"""
@@ -163,6 +175,32 @@ class ScanPoseMux(Node):
         """清除导纳接管插值状态."""
         self.blend_start_pose = None
         self.blend_start_time = None
+
+    def _start_direct_blend(self) -> None:
+        """进入 approach 时，从上一帧 servo 目标平滑接到第一帧轨迹源."""
+        if self.approach_blend_duration <= 0.0 or self.last_output_pose is None:
+            self._clear_direct_blend()
+            return
+        self.direct_blend_start_pose = self.last_output_pose
+        self.direct_blend_start_time = time.monotonic()
+
+    def _clear_direct_blend(self) -> None:
+        """清除进入 approach 时的直通接管插值状态."""
+        self.direct_blend_start_pose = None
+        self.direct_blend_start_time = None
+
+    def _blend_direct_pose(self, msg: Pose) -> Pose:
+        """必要时把第一段直通轨迹从上一帧 servo 目标平滑插值过去."""
+        if self.direct_blend_start_pose is None or self.direct_blend_start_time is None:
+            return msg
+        ratio = blend_ratio(
+            time.monotonic() - self.direct_blend_start_time,
+            self.approach_blend_duration,
+        )
+        if ratio >= 1.0:
+            self._clear_direct_blend()
+            return msg
+        return interpolate_pose_msg(self.direct_blend_start_pose, msg, ratio)
 
     def _blend_admittance_pose(self, msg: Pose) -> Pose:
         """必要时把导纳输出从上一帧 servo 目标平滑插值过去."""

@@ -82,3 +82,33 @@ def test_interpolate_pose_msg_blends_position_and_orientation():
     assert math.isclose(blended.position.z, 0.23)
     assert 0.0 < blended.orientation.z < 1.0
     assert 0.0 < blended.orientation.w < 1.0
+
+
+def test_entering_approach_blends_first_direct_pose_from_last_output():
+    from ultra_scanning_system.scan_pose_mux import ScanPoseMux
+
+    node = ScanPoseMux.__new__(ScanPoseMux)
+    node.current_state = ''
+    node.direct_states = {'approach', 'pre_contact'}
+    node.approach_blend_duration = 1.0
+    node.admittance_blend_duration = 0.5
+    node.latest_direct_pose = None
+    node.last_output_pose = _FakePose()
+    node.last_output_pose.position.x = 0.0
+    node.last_output_pose.orientation.w = 1.0
+    node.blend_start_pose = None
+    node.blend_start_time = None
+    node.direct_blend_start_pose = None
+    node.direct_blend_start_time = None
+    node.published = []
+    node._publish_pose = lambda msg: node.published.append(msg)
+
+    ScanPoseMux._on_state(node, types.SimpleNamespace(data='approach'))
+
+    target = _FakePose()
+    target.position.x = 1.0
+    target.orientation.w = 1.0
+    ScanPoseMux._on_direct_pose(node, target)
+
+    assert len(node.published) == 1
+    assert 0.0 <= node.published[0].position.x < 1.0
