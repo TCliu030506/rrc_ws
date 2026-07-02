@@ -1,12 +1,12 @@
-origin  0.111934  0.581447 0.0610725
-x_axis    0.999998 2.05674e-05 -0.00208307
-y_axis          0   0.999951 0.00987312
-z_axis  0.00208317 -0.00987309    0.999949
+origin  0.118517  0.545921 0.0438737
+x_axis     0.999963 -2.97893e-05   -0.0086169
+y_axis 3.38813e-21    0.999994 -0.00345706
+z_axis 0.00861695 0.00345693   0.999957
 det_R 1
 dot_xy 0
 dot_xz 0
-dot_yz 1.73472e-18
-roi_point_count 43925
-normal_fit_point_count 38920
+dot_yz 0
+roi_point_count 35785
+normal_fit_point_count 32398
 preferred_z_axis 0 0 1
 used_platform_normal 0

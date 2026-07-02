@@ -39,7 +39,7 @@ def has_required_joint_states(
 ) -> bool:
     if int(asm_version) in (1, 3):
         return bool(received_joint1 and received_joint2)
-    if int(asm_version) == 2:
+    if int(asm_version) in (2, 4):
         return bool(received_joint1 and received_joint2 and received_joint3)
     raise ValueError(f"Unsupported asm_version: {asm_version}")
 
@@ -73,6 +73,8 @@ def default_static_transforms(
         return _v2_static_transforms(parent_frame)
     if int(asm_version) == 3:
         return _v3_static_transforms(parent_frame)
+    if int(asm_version) == 4:
+        return _v4_static_transforms(parent_frame)
     raise ValueError(f"Unsupported asm_version: {asm_version}")
 
 
@@ -133,6 +135,8 @@ def default_dynamic_transforms(
         return _v2_dynamic_transforms(joint1_rad, joint2_rad, joint3_rad)
     if int(asm_version) == 3:
         return _v3_dynamic_transforms(joint1_rad, joint2_rad)
+    if int(asm_version) == 4:
+        return _v4_dynamic_transforms(joint1_rad, joint2_rad, joint3_rad)
     raise ValueError(f"Unsupported asm_version: {asm_version}")
 
 
@@ -256,3 +260,46 @@ def _v3_dynamic_transforms(
     joint2_rad: float,
 ) -> list[TransformSpec]:
     return _v2_rotary_transforms(joint1_rad, joint2_rad)
+
+def _v4_static_transforms(
+    parent_frame: str,
+) -> list[TransformSpec]:
+    return [
+        TransformSpec(
+            parent_frame,
+            "asm_base",
+            (0.0, 0.0, 0.0),
+            IDENTITY_QUAT_XYZW,
+        ),
+        TransformSpec(
+            "asm_base",
+            "camera_link",
+            (0.1, -0.0011879, 0.005),
+            IDENTITY_QUAT_XYZW,
+        ),
+        TransformSpec(
+            "asm_base",
+            "asm_force_sensor_link",
+            (0.0, 0.0, 0.0145),
+            mujoco_quat_wxyz_to_ros_xyzw((0.0, 0.0, 0.0, -1.0)),
+        ),
+        TransformSpec(
+            "asm_force_sensor_link",
+            "asm_tool_base_link",
+            (0.0, 0.0, 0.0095),
+            mujoco_quat_wxyz_to_ros_xyzw((0.0, 0.0, 0.0, 1.0)),
+        ),
+        TransformSpec(
+            "asm_tool_link3",
+            "asm_ee_site",
+            (0.0, 0.0, 0.06585),
+            IDENTITY_QUAT_XYZW,
+        )
+    ]
+
+def _v4_dynamic_transforms(
+    joint1_rad: float,
+    joint2_rad: float,
+    joint3_m: float,
+) -> list[TransformSpec]:
+    return _v2_dynamic_transforms(joint1_rad, joint2_rad, joint3_m)

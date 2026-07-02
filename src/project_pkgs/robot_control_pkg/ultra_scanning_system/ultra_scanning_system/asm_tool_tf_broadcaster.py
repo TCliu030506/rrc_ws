@@ -37,8 +37,8 @@ class AsmToolTfBroadcaster(Node):
         self.declare_parameter("publish_without_joint_state", True)
 
         self.asm_version = int(self.get_parameter("asm_version").value)
-        if self.asm_version not in (1, 2, 3):
-            raise ValueError("asm_version must be 1, 2, or 3")
+        if self.asm_version not in (1, 2, 3, 4):
+            raise ValueError("asm_version must be 1, 2, 3, or 4")
 
         self.parent_frame = str(self.get_parameter("parent_frame").value)
         self.encoder1_joint_state_topic = str(
@@ -98,7 +98,7 @@ class AsmToolTfBroadcaster(Node):
             self._on_encoder2_joint_state,
             qos_profile_sensor_data,
         )
-        if self.asm_version == 2:
+        if self.asm_version in (2, 4):
             self.create_subscription(
                 JointState,
                 self.encoder3_joint_state_topic,

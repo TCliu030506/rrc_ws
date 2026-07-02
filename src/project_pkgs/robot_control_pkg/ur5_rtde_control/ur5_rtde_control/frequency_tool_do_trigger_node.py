@@ -7,6 +7,7 @@
 """
 
 from pathlib import Path
+from datetime import datetime
 import socket
 from typing import Iterable, Sequence
 
@@ -50,6 +51,12 @@ def resolve_records_file(records_file: str) -> Path:
     if path.is_absolute():
         return path
     return find_ultra_scanning_data_dir() / path
+
+
+def timestamp_records_file(path: Path, now: datetime | None = None) -> Path:
+    """在记录文件名最前面加上当前日期时间前缀."""
+    timestamp = (now or datetime.now()).strftime('%Y%m%d_%H%M')
+    return path.with_name(f'{timestamp}_{path.name}')
 
 
 def validate_trigger_timing(
@@ -123,8 +130,8 @@ class FrequencyToolDOTriggerNode(Node):
         )
         if self.urscript_timeout_sec <= 0.0:
             raise ValueError('urscript_timeout_sec must be > 0')
-        self.records_file = resolve_records_file(
-            str(self.get_parameter('records_file').value)
+        self.records_file = timestamp_records_file(
+            resolve_records_file(str(self.get_parameter('records_file').value))
         )
         self.period_sec = validate_trigger_timing(
             self.trigger_frequency_hz,

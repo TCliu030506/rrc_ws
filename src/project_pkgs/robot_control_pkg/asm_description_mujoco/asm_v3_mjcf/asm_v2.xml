@@ -1,0 +1,83 @@
+<mujoco model="asm_v2_description">
+  <compiler angle="radian" meshdir="assets"/>
+  <option timestep="0.002"/>
+
+  <asset>
+    <mesh name="base_link" file="base_link.STL"/>
+    <mesh name="camera_link" file="camera_link.STL"/>
+    <mesh name="force_sensor_link" file="force_sensor_link.STL"/>
+    <mesh name="linear_fixed_link" file="linear_fixed_link.STL"/>
+    <mesh name="asm_tool_link1" file="asm_tool_link1.STL"/>
+    <mesh name="asm_tool_link2" file="asm_tool_link2.STL"/>
+    <mesh name="asm_tool_link3" file="asm_tool_link3.STL"/>
+    <mesh name="asm_waterproof_link" file="asm_waterproof_link.STL"/>
+
+    <material name="base_white" rgba="1 1 1 1"/>
+    <material name="camera_blue" rgba="0.654901960784314 0.933333333333333 1 1"/>
+    <material name="sensor_body" rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+    <material name="tool_dark" rgba="0.109803921568627 0.109803921568627 0.109803921568627 1"/>
+    <material name="soft_rubber" rgba="0.498039215686275 0.498039215686275 0.498039215686275 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- asm_base corresponds to the parent robot link that mounts the ASM tool. -->
+    <body name="asm_base" pos="0 0 0" quat="0 0 0 1">
+      <inertial pos="0.0436659010788282 0 0.00250000000000006" mass="0.086004368205565" diaginertia="2.92028954537743e-05 0.000136340313174352 0.000165184857093937"/>
+      <geom type="mesh" mesh="base_link" material="base_white"/>
+
+      <body name="camera_link" pos="0.1 -0.0011879 0.005">
+        <inertial pos="2.41707232313815e-06 -0.00049444581332379 0.0117777122653947" mass="0.0363579991795017" diaginertia="2.11887628049285e-05 2.01033671667199e-06 2.24422074118421e-05"/>
+        <camera name="c1" mode="fixed" fovy="100" euler="0 3.14 1.57" pos="0 0 0.05"/>
+        <geom type="mesh" mesh="camera_link" material="camera_blue"/>
+      </body>
+
+      <camera name="c2" pos="0.5 0.5 0" mode="targetbody" target="camera_link" fovy="54.225"/>
+
+      <body name="asm_force_sensor_link" pos="0 0 0.0145" euler="0 0 -3.1416">
+        <inertial pos="-0.000349049071914536 -0.000349046591926434 6.96968716258906e-05" mass="0.0170701225195211" diaginertia="1.92592459282036e-06 1.92592528843229e-06 2.88618116550286e-06"/>
+        <geom type="mesh" mesh="force_sensor_link" material="sensor_body"/>
+
+        <site name="asm_force_sensor_site" pos="0 0 0" size="0.005"/>
+
+        <body name="asm_linear_fixed_link" pos="0 0 0.0095" euler="0 0 3.1416">
+          <inertial pos="0.000178295777954009 -0.00354351136861933 0.0287728544992723" mass="0.294786724180498" diaginertia="0.000501542417042301 0.000206429530918581 0.000490030919179466"/>
+          <geom type="mesh" mesh="linear_fixed_link" material="base_white" conaffinity="0"/>
+
+          <body name="asm_tool_link1" pos="0 0 0.10171">
+            <inertial pos="0.000503162951736984 -0.00214891278340015 -0.00246586232436954" mass="0.190414490710655" diaginertia="0.000123985544804799 5.40566762518669e-05 0.00012962451821251"/>
+            <joint name="asm_tool_joint1" type="slide" axis="0 0 1" range="-0.05 0.005" damping="0.1" frictionloss="0.1"/>
+            <geom type="mesh" mesh="asm_tool_link1" material="tool_dark" conaffinity="0"/>
+
+            <body name="asm_tool_link2" pos="0 0 0.068" euler="0 -0.0 0">
+              <inertial pos="-2.10346355471475e-05 -2.70135669043457e-05 0.00514183487267464" mass="0.208516612105549" diaginertia="7.40334891045725e-05 7.61592001501933e-05 5.73979282215929e-05"/>
+              <joint name="asm_tool_joint2" type="hinge" axis="0 -1 0" range="-0.15 0.15" damping="0.1" frictionloss="0.1"/>
+              <geom type="mesh" mesh="asm_tool_link2" material="base_white" conaffinity="0"/>
+
+              <body name="asm_tool_link3" pos="0.00034889 0 0.0495" euler="-0 0 0">
+                <inertial pos="-0.000348898843608249 -0.000531783609665607 0.00884269931571253" mass="0.102220510436126" diaginertia="6.65596700213336e-05 1.91399123340046e-05 7.90975857774467e-05"/>
+                <joint name="asm_tool_joint3" type="hinge" axis="1 0 0" range="-0.3 0.3" damping="0.1" frictionloss="0.1"/>
+                <geom type="mesh" mesh="asm_tool_link3" material="base_white" conaffinity="0"/>
+                <site name="asm_ee_site" pos="0 0 0.06585" size="0.005"/>
+
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <force name="asm_force" site="asm_force_sensor_site"/>
+    <torque name="asm_torque" site="asm_force_sensor_site"/>
+    <jointpos name="link1_pos" joint="asm_tool_joint1"/>
+    <jointpos name="link2_pos" joint="asm_tool_joint2"/>
+    <jointpos name="link3_pos" joint="asm_tool_joint3"/>
+  </sensor>
+
+  <actuator>
+    <position name="tool_joint1_pos" joint="asm_tool_joint1" kp="4000" kv="20.0" ctrlrange="-0.05 0.005"/>
+    <position name="tool_joint2_pos" joint="asm_tool_joint2" kp="10" kv="0.1" ctrlrange="-0.15 0.15"/>
+    <position name="tool_joint3_pos" joint="asm_tool_joint3" kp="10" kv="0.1" ctrlrange="-0.30 0.30"/>
+  </actuator>
+</mujoco>

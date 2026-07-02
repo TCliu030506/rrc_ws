@@ -1,5 +1,6 @@
 import sys
 import types
+from datetime import datetime
 
 import pytest
 
@@ -29,6 +30,7 @@ from ur5_rtde_control.frequency_tool_do_trigger_node import (  # noqa: E402
     find_ultra_scanning_data_dir,
     rtde_tool_do_value_for_physical_level,
     resolve_records_file,
+    timestamp_records_file,
     validate_trigger_timing,
 )
 
@@ -39,6 +41,16 @@ def test_relative_records_file_is_under_ultra_scanning_data():
     assert path.name == "ultrasound_triggers.csv"
     assert path.parent.name == "data"
     assert path.parent.parent.name == "ultra_scanning_system"
+
+
+def test_records_file_name_gets_timestamp_prefix():
+    path = timestamp_records_file(
+        resolve_records_file("frequency_tool_do_triggers.csv"),
+        now=datetime(2026, 6, 27, 15, 46),
+    )
+
+    assert path.name == "20260627_1546_frequency_tool_do_triggers.csv"
+    assert path.parent.name == "data"
 
 
 def test_data_dir_can_be_found_from_install_prefix(tmp_path):

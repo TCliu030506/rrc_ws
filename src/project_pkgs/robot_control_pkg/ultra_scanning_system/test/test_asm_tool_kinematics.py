@@ -1,6 +1,8 @@
 import math
 
 from ultra_scanning_system.asm_tool_kinematics import (
+    _v4_dynamic_transforms,
+    _v4_static_transforms,
     default_dynamic_transforms,
     default_static_transforms,
 )
@@ -68,6 +70,38 @@ def test_v2_dynamic_transforms_use_slide_and_three_tool_joints():
     assert math.isclose(link2_quat[3], math.cos(joint1_rad / 2.0))
     assert math.isclose(link3_quat[0], math.sin((-0.039683 + joint2_rad) / 2.0))
     assert math.isclose(link3_quat[3], math.cos((-0.039683 + joint2_rad) / 2.0))
+
+
+def test_v4_static_transforms_match_v2_configuration():
+    assert _v4_static_transforms(
+        "tool0_controller",
+    ) == default_static_transforms(
+        "tool0_controller",
+        asm_version=2,
+    )
+    assert default_static_transforms(
+        "tool0_controller",
+        asm_version=4,
+    ) == _v4_static_transforms("tool0_controller")
+
+
+def test_v4_dynamic_transforms_match_v2_configuration():
+    assert _v4_dynamic_transforms(
+        0.2,
+        -0.3,
+        0.01,
+    ) == default_dynamic_transforms(
+        0.2,
+        -0.3,
+        0.01,
+        asm_version=2,
+    )
+    assert default_dynamic_transforms(
+        0.2,
+        -0.3,
+        0.01,
+        asm_version=4,
+    ) == _v4_dynamic_transforms(0.2, -0.3, 0.01)
 
 
 def test_v3_static_transforms_fix_linear_frame_to_tool_link1():

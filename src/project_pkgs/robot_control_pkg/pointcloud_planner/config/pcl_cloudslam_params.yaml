@@ -198,5 +198,5 @@ pcl_cloudslam_node:
 
     # 预设凹曲面圆锥模型：顶点在工件坐标系原点，底面朝 +Z，底面平行 XOY。
     premodel_cone_base_diameter: 0.45
-    premodel_cone_generatrix_angle_deg: 0.0  # 0.0 是将圆锥面简化为了一个圆形平面，工件正面地实际角度为6-8度。
+    premodel_cone_generatrix_angle_deg: 7.0  # 0.0 是将圆锥面简化为了一个圆形平面，工件正面地实际角度为6-8度。
     premodel_cone_sample_spacing: 0.0005
