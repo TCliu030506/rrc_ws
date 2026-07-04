@@ -56,10 +56,11 @@ pcl_cloudslam_node:
     # =========================
     # 3. 规划模式与探头尺寸
     # =========================
-    # 可选：plane / cylinder_preplan / concave_surface / premodel_concave_surface
+    # 可选：plane / cylinder_preplan / concave_surface / premodel_concave_surface / function_premodel_surface
     # plane：平面 ROI 扫查；cylinder_preplan：圆柱预规划；concave_surface：凹曲面模式。
     # premodel_concave_surface：沿用凹曲面 ROI 和工件坐标系，使用预设圆锥面模型规划路径。
-    planning_mode: premodel_concave_surface
+    # function_premodel_surface：沿用凹曲面 ROI 和工件坐标系，使用预设函数曲面模型规划路径。
+    planning_mode: function_premodel_surface
 
     # 探头有效长度/宽度，单位 m，用于 ROI 边界收缩，避免探头越界。
     probe_length_m: 0.0384

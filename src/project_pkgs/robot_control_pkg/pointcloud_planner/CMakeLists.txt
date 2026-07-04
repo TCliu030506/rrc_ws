@@ -149,6 +149,16 @@ if(BUILD_TESTING)
   )
   target_link_libraries(test_concave_path_planning ${PCL_LIBRARIES})
   add_test(NAME test_concave_path_planning COMMAND test_concave_path_planning)
+  add_executable(test_function_premodel_surface_utils
+    test/test_function_premodel_surface_utils.cpp
+  )
+  target_include_directories(test_function_premodel_surface_utils PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    "$<INSTALL_INTERFACE:include>"
+    ${PCL_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_function_premodel_surface_utils ${PCL_LIBRARIES})
+  add_test(NAME test_function_premodel_surface_utils COMMAND test_function_premodel_surface_utils)
   add_executable(test_camera_distance_filter test/test_camera_distance_filter.cpp)
   target_include_directories(test_camera_distance_filter PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"

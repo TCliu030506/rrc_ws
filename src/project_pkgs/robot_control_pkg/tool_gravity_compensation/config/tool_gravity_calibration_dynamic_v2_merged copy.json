@@ -15,7 +15,7 @@
   "link_masses": [
     0.635,
     0.698852989502131,
-    0.105
+    0.7011470104978684
   ],
   "link_com_x": [
     -0.0017623445828528152,
@@ -35,7 +35,7 @@
   "force_bias": [
     -13.72840690612793,
     11.508071746826172,
-    -20.0544869422912598
+    -8.0544869422912598
   ],
   "torque_bias": [
     0.017,
@@ -47,7 +47,7 @@
     "brt_encoder2_joint",
     "brt_encoder3_joint"
   ],
-  "asm_version": 4,
+  "asm_version": 2,
   "solver_mode": "constrained_v2_merged",
   "known_base_mass": 0.635,
   "known_moving_total_mass": 1.4,

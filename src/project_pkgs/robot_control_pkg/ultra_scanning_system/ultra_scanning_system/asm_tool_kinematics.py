@@ -292,7 +292,7 @@ def _v4_static_transforms(
         TransformSpec(
             "asm_tool_link3",
             "asm_ee_site",
-            (0.0, 0.0, 0.06585),
+            (0.0, 0.0, 0.06085),
             IDENTITY_QUAT_XYZW,
         )
     ]

@@ -1,10 +1,10 @@
-r_min 0.00100751
-r_max 0.22669
-r_95 0.221652
+r_min 0.00100001
+r_max 0.222984
+r_95 0.218487
 r_end 0.05
 layer_count 7
-total_candidate_points 2698
-valid_path_points 2698
+total_candidate_points 2629
+valid_path_points 2629
 skipped_theta_fit_points 0
 skipped_normal_fit_points 0
 skipped_orientation_points 0

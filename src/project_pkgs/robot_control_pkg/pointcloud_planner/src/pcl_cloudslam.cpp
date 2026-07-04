@@ -3,6 +3,7 @@
 #include "../include/pointcloud_planner/concave_roi_refinement.h"
 #include "../include/pointcloud_planner/concave_workpiece_frame.h"
 #include "../include/pointcloud_planner/camera_distance_filter.h"
+#include "../include/pointcloud_planner/premodel_surface_utils.h"
 #include "../include/pointcloud_planner/roi_mode_utils.h"
 #include <ament_index_cpp/get_package_prefix.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
@@ -363,6 +364,7 @@ pcl_cloudslam::pcl_cloudslam():rclcpp::Node("pcl_cloudslam_node")
     declare_parameter<double>("premodel_cone_base_diameter", 0.45);
     declare_parameter<double>("premodel_cone_generatrix_angle_deg", 7.0);
     declare_parameter<double>("premodel_cone_sample_spacing", 0.002);
+    declare_parameter<double>("function_premodel_sample_spacing", 0.0005);
     // 加载相机变换矩阵
     std::string camera_transform_path = file_path + "hand_eye_calibration.json";
     RCLCPP_INFO(this->get_logger(), "Loading camera transform from: %s", camera_transform_path.c_str());
@@ -992,6 +994,29 @@ bool pcl_cloudslam::path_plan_concave()
             premodel_cone_generatrix_angle_deg,
             model_path.c_str()
         );
+    } else if (planning_mode == "function_premodel_surface") {
+        double function_premodel_sample_spacing;
+        get_parameter("function_premodel_sample_spacing", function_premodel_sample_spacing);
+        cloud_workpiece = pointcloudslam_cpp::build_function_premodel_surface_cloud(
+            function_premodel_sample_spacing
+        );
+        if (cloud_workpiece->points.empty()) {
+            RCLCPP_ERROR(
+                get_logger(),
+                "Failed to build function premodel surface cloud: spacing=%.5f",
+                function_premodel_sample_spacing
+            );
+            return false;
+        }
+        const std::string model_path = file_path + "pcl_function_premodel_workpiece.pcd";
+        pcl::io::savePCDFileASCII(model_path, *cloud_workpiece);
+        RCLCPP_INFO(
+            get_logger(),
+            "Function premodel surface cloud built: points=%zu, spacing=%.5f m, output=%s",
+            cloud_workpiece->points.size(),
+            function_premodel_sample_spacing,
+            model_path.c_str()
+        );
     } else {
         const std::string input_path = file_path + "pcl_roi_refined_workpiece.pcd";
         if (pcl::io::loadPCDFile(input_path, *cloud_workpiece) != 0 || cloud_workpiece->points.empty()) {
@@ -1038,7 +1063,7 @@ bool pcl_cloudslam::path_plan_concave()
     get_parameter("concave_min_total_path_points", params.min_total_path_points);
     get_parameter("concave_min_valid_points_per_layer", params.min_valid_points_per_layer);
     get_parameter("surface_clearance", params.surface_clearance);
-    params.align_x_axis_to_scan_direction = (planning_mode != "premodel_concave_surface");
+    params.align_x_axis_to_scan_direction = !pointcloudslam_cpp::is_premodel_surface_mode(planning_mode);
 
     std::string tool_z_align;
     get_parameter("concave_tool_z_align", tool_z_align);

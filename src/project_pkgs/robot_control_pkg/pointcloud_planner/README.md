@@ -119,3 +119,9 @@ pcl_viewer \
   pcl_roi_refined_workpiece.pcd -fc 255,0,0 \
   pcl_premodel_concave_workpiece.pcd -fc 0,255,0
 ```
+
+```bash
+pcl_viewer \
+  pcl_roi_refined_workpiece.pcd -fc 255,0,0 \
+  pcl_function_premodel_workpiece.pcd -fc 0,255,0
+```
